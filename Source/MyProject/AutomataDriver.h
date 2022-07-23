@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -173,14 +171,29 @@ const TArray<FIntPoint> RelativeMooreNeighborhood
 	FIntPoint(-1,1), FIntPoint(0,1), FIntPoint(1,1)
 };
 
+const TArray<FIntPoint> RelativeAxialNeighborhood
+{
+	FIntPoint(0,-1), FIntPoint(1,-1),
+	FIntPoint(1,0), FIntPoint(0,1),
+	FIntPoint(-1,1), FIntPoint(-1,0),
+	/*FIntPoint(-2,0), FIntPoint(0,-2)*/
+};
+
+UENUM()
+enum class CellShape : uint8
+{
+	Square,
+	Hex
+};
+
 
 
 UCLASS()
 class AAutomataDriver : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	// Sets default values for this actor's properties
 	AAutomataDriver();
 
@@ -189,6 +202,10 @@ protected:
 	virtual void PreInitializeComponents() override;
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
+
+	virtual void SetGridCoords();
+
+	virtual void SetRelativeNeighborhood();
 
 	virtual void InitializeMaterial();
 
@@ -228,7 +245,7 @@ protected:
 		UNiagaraSystem* ParticleSystem;
 
 	UNiagaraComponent* NiagaraComponent;
-	
+
 	TArray<float> SwitchTimeBuffer;
 
 	//Set that stores the birth rules for the automata
@@ -239,31 +256,19 @@ protected:
 	TArray<bool> CurrentStates;
 	TArray<bool> NextStates;
 
-	TArray<bool> NeighborhoodChangedThisStep;
-	TArray<bool> NeighborhoodChangedLastStep;
-
-	TArray<bool> ChangedThisStep;
-	TArray<bool> ChangedLastStep;
-
-	TArray<float*> CurrentDataSlots;
-	TArray<float*>  NextDataSlots;
-	TArray<float*> SwitchTimeSlots;
-
-
+	TArray<bool> EvalFlaggedThisStep;
+	TArray<bool> EvalFlaggedLastStep;
 
 	TArray<TSharedPtr<TArray<int>>> Neighborhoods;
 	TArray<TSharedPtr<TSet<int>>> NeighborsOf;
+
+	TArray<FIntPoint> GridCoords;
 
 	TSubclassOf<class UBaseGridRuleFactory> GridRuleFactoryType = UBaseGridRuleFactory::StaticClass();
 	UBaseGridRuleFactory* GridRuleFactory;
 
 	// Array of CellProcessor objects that are responsible for incrementing an associated instance collection
 	TArray<FAsyncTask<CellProcessor>*> Processors;
-
-	// Array that stores the instance collections
-	UPROPERTY()
-		TArray<UInstancedStaticMeshComponent*> ClusterInstances;
-	
 
 	// Mesh that will be instanced to form the grid- typically a simple square
 	UPROPERTY(Blueprintable, EditAnywhere)
@@ -295,10 +300,13 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Torus;
 
+	UPROPERTY(Blueprintable, EditAnywhere)
+		CellShape Shape = CellShape::Hex;
+
 	// Probability when initializing that a cell will start off alive.
 	// Functionally ranges from 0 to 1.
 	UPROPERTY(Blueprintable, EditAnywhere)
-		float Probability = 0.4; 
+		float Probability = 0.4;
 
 	// User-set string that defines the birth rules for the automata
 	// Capable of accepting non-digit characters, but they will be ignored
@@ -316,12 +324,12 @@ protected:
 		float Offset = 1;
 
 	// time per automata step in seconds
-	UPROPERTY(Blueprintable, EditAnywhere) 
+	UPROPERTY(Blueprintable, EditAnywhere)
 		float StepPeriod = 0.01;
 
 	// Exponent that drives how quickly a switched-off cell fades into the off state
 	// An exponent of 1 will fade linearly over the transition period. A higher exponent will fade out quicker initially, and a lower exponent will fade out slower initially.
-	UPROPERTY(Blueprintable, EditAnywhere) 
+	UPROPERTY(Blueprintable, EditAnywhere)
 		float PhaseExponent = 201;
 
 	// Simple float used to store the time of the next step transition
@@ -336,11 +344,11 @@ protected:
 		FLinearColor OffColor = FLinearColor(0.0, 0, 0.0, 1);
 
 	// Material property used to control emissive value
-	UPROPERTY(Blueprintable, EditAnywhere) 
+	UPROPERTY(Blueprintable, EditAnywhere)
 		float EmissiveMultiplier = 20;
 
 	// how many automata steps a dead cell takes to fade out after death
-	UPROPERTY(Blueprintable, EditAnywhere) 
+	UPROPERTY(Blueprintable, EditAnywhere)
 		float StepsToFade = 1000;
 
 	// Timer that fires once for each instance collection, and one additional time to signal the end of an automata step
@@ -355,13 +363,10 @@ protected:
 	UFUNCTION()
 		void TimerFired();
 
-public:	
+public:
 
 	virtual void CellProcessorWork(const TArray<int>& CellIDs);
 
 };
-
-
-
 
 

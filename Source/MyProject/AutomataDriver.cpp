@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "AutomataDriver.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
 #include "Misc/Char.h"
@@ -9,6 +6,9 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFloat.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+#include "HexCoords.h"
+
+typedef UNiagaraDataInterfaceArrayFunctionLibrary NiagaraFuncs;
 
 
 // Sets default values
@@ -19,10 +19,13 @@ AAutomataDriver::AAutomataDriver()
 }
 
 
-
 void AAutomataDriver::PreInitializeComponents()
 {
 	Super::PreInitializeComponents();
+
+	SetGridCoords();
+
+	SetRelativeNeighborhood();
 
 	InitializeCellTransforms();
 
@@ -31,7 +34,7 @@ void AAutomataDriver::PreInitializeComponents()
 	InitializeNiagaraSystem();
 
 	CreateGridRuleInterface();
-	
+
 }
 
 void AAutomataDriver::PostInitializeComponents()
@@ -43,6 +46,8 @@ void AAutomataDriver::PostInitializeComponents()
 	InitializeCellStates();
 
 	InitializeCellNeighborhoods();
+
+	GridCoords = TArray<FIntPoint>();
 
 	InitializeCellNeighborsOf();
 
@@ -69,9 +74,37 @@ void AAutomataDriver::BeginPlay()
 
 	StepComplete();
 	NiagaraComponent->ActivateSystem();
-		
+
 	// we are ready to start the iteration steps.
 	GetWorldTimerManager().SetTimer(StepTimer, this, &AAutomataDriver::TimerFired, StepPeriod, true);
+}
+
+void AAutomataDriver::SetGridCoords()
+{
+	GridCoords.Init(FIntPoint(), NumCells());
+	ParallelFor(NumZCells, [&](int z)
+	{
+		ParallelFor(NumXCells, [&](int x)
+		{
+			int ID = z * NumXCells + x;
+			GridCoords[ID] = FIntPoint(x, z);
+		});
+	});
+}
+
+void AAutomataDriver::SetRelativeNeighborhood()
+{
+	switch (Shape)
+	{
+	case CellShape::Square:
+		RelativeNeighborhood = RelativeMooreNeighborhood;
+		break;
+	case CellShape::Hex:
+		RelativeNeighborhood = RelativeAxialNeighborhood;
+		break;
+	default:
+		RelativeNeighborhood = RelativeMooreNeighborhood;
+	}
 }
 
 void AAutomataDriver::InitializeMaterial()
@@ -84,18 +117,28 @@ void AAutomataDriver::InitializeMaterial()
 	DynMaterial->SetVectorParameterValue("OnColor", OnColor);
 	DynMaterial->SetVectorParameterValue("OffColor", OffColor);
 	DynMaterial->SetScalarParameterValue("FadePerSecond", 1 / (StepPeriod * StepsToFade));
+
+	DynMaterial->SetScalarParameterValue("IsHexagon", Shape == CellShape::Hex);
 }
 
 void AAutomataDriver::InitializeCellTransforms()
 {
 	CellTransforms.Reserve(NumCells());
 
-	for (int z = 0; z < NumZCells; ++z)
+	for (int i = 0; i < NumCells(); ++i)
 	{
-		for (int x = 0; x < NumXCells; ++x)
+		FIntPoint Coord = GridCoords[i];
+		FVector TransformResult;
+		switch (Shape)
 		{
-			CellTransforms.Add(Offset * FVector(x, 0, z));
+		case CellShape::Square:
+			TransformResult = Offset * FVector(Coord[0], 0, Coord[1]);
+			break;
+		case CellShape::Hex:
+			FVector2D TwoDeeTransform = HexCoords::OffsetToTransform(Coord);
+			TransformResult = Offset * FVector(TwoDeeTransform[0], 0, TwoDeeTransform[1]);
 		}
+		CellTransforms.Add(TransformResult);
 	}
 }
 
@@ -103,7 +146,7 @@ void AAutomataDriver::InitializeNiagaraSystem()
 {
 	NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ParticleSystem, RootComponent, FName(), FVector(0), FRotator(0), EAttachLocation::KeepRelativeOffset, false, false, ENCPoolMethod::None, true);
 
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, "User.Transforms", CellTransforms);
+	NiagaraFuncs::SetNiagaraArrayVector(NiagaraComponent, "User.Transforms", CellTransforms);
 	NiagaraComponent->SetVariableMaterial(FName("User.Material"), DynMaterial);
 	NiagaraComponent->SetVariableInt(FName("User.XCount"), NumXCells);
 	NiagaraComponent->SetVariableInt(FName("User.ZCount"), NumZCells);
@@ -144,8 +187,9 @@ void AAutomataDriver::InitializeCellStates()
 
 	NextStates.Init(false, NumCells());
 
-	ChangedLastStep.Init(true, NumCells());
-	ChangedThisStep.Init(true, NumCells());
+	EvalFlaggedThisStep.Init(true, NumCells());
+	EvalFlaggedLastStep.Init(true, NumCells());
+
 }
 
 
@@ -158,28 +202,33 @@ void AAutomataDriver::CreateGridRuleInterface()
 
 void AAutomataDriver::InitializeCellNeighborhoods()
 {
-
 	Neighborhoods.Init(nullptr, NumCells());
 
-	NeighborhoodChangedLastStep.Init(true, NumCells());
-	NeighborhoodChangedThisStep.Init(false, NumCells());
-
-	ParallelFor(NumXCells, [&](int x)
+	ParallelFor(NumCells(), [&](int CellID)
 	{
-		ParallelFor(NumZCells, [&](int z)
-		{
-			// derive grid coordinates from index
-			FIntPoint CellCoords(x, z);
+		TArray<FIntPoint> NeighborCoords = RelativeNeighborhood;
+		FIntPoint CellCoords = GridCoords[CellID];
 
-			TArray<FIntPoint> NeighborCoords = RelativeNeighborhood;
+		switch (Shape)
+		{
+		case (CellShape::Square):
 			for (int i = 0; i < RelativeNeighborhood.Num(); ++i)
 			{
 				NeighborCoords[i] += CellCoords;
 			}
-			int CellID = z * NumXCells + x;
-			Neighborhoods[CellID] = GridRule->RawCoordsToCellIDs(NeighborCoords);
-		});
+			break;
 
+		case (CellShape::Hex):
+			FIntPoint AxialCoord = HexCoords::OffsetToAxial(CellCoords);
+			for (int i = 0; i < RelativeNeighborhood.Num(); ++i)
+			{
+				NeighborCoords[i] += AxialCoord;
+				FIntPoint OffsetPoint = HexCoords::AxialToOffset(NeighborCoords[i]);
+				NeighborCoords[i] = OffsetPoint;
+			}
+			break;
+		}
+		Neighborhoods[CellID] = GridRule->RawCoordsToCellIDs(NeighborCoords);
 	});
 }
 
@@ -220,19 +269,17 @@ void AAutomataDriver::SetCellNextCustomData(const TArray<int>& CellIDs)
 	{
 		int CellID = CellIDs[i];
 
-		if (NeighborhoodChangedLastStep[CellID] || ChangedLastStep[CellID])// register change based on state
+		if (EvalFlaggedLastStep[CellID])// register change based on state
 		{
 			// register change based on state
 			if (NextStates[CellID])
 			{  // switch-off time is in the future, i.e. cell is still on
-				//*(CurrentDataSlots[CellID]) = TNumericLimits<float>::Max();
 				SwitchTimeBuffer[CellID] = TNumericLimits<float>::Max();
 			}
 			else // is off at next time
 			{
 				if (CurrentStates[CellID])  // was previously on
 				{ // register switch-off time as being upcoming step
-					//*(CurrentDataSlots[CellID]) = NextStepTime;
 					SwitchTimeBuffer[CellID] = NextStepTime;
 				}
 			}
@@ -253,7 +300,7 @@ void AAutomataDriver::ApplyCellRules(const TArray<int>& CellIDs)
 	{
 		const int CellID = CellIDs[i];
 
-		if (NeighborhoodChangedLastStep[CellID] || ChangedLastStep[CellID])
+		if (EvalFlaggedLastStep[CellID])
 		{
 			int AliveNeighbors = GetCellAliveNeighbors(CellID);
 
@@ -262,10 +309,10 @@ void AAutomataDriver::ApplyCellRules(const TArray<int>& CellIDs)
 			//there has been a change of state
 			if (NextStates[CellID] != CurrentStates[CellID])
 			{
-				ChangedThisStep[CellID] = true;
+				EvalFlaggedThisStep[CellID] = true;
 				for (int InfluencedCellID : *(NeighborsOf[CellID]))
 				{
-					NeighborhoodChangedThisStep[InfluencedCellID] = true;
+					EvalFlaggedThisStep[InfluencedCellID] = true;
 				}
 			}
 		}
@@ -318,19 +365,14 @@ void AAutomataDriver::TimestepPropertyShift()
 {
 	NextStepTime = GetWorld()->GetTimeSeconds() + StepPeriod;
 
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchTimes", SwitchTimeBuffer);
-	//SwitchTimeDataInterface->GetArrayReference() = SwitchTimeBuffer;
-	//bool check = ParticleSwitchTimes == &(UNiagaraFunctionLibrary::GetDataInterface<UNiagaraDataInterfaceArrayFloat>(NiagaraComponent, FName("User.SwitchTimes"))->GetArrayReference());
+	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchTimes", SwitchTimeBuffer);
 
 	ParallelFor(NumCells(), [&](int32 CellID)
 	{
 		CurrentStates[CellID] = NextStates[CellID];
 
-		NeighborhoodChangedLastStep[CellID] = NeighborhoodChangedThisStep[CellID];
-		NeighborhoodChangedThisStep[CellID] = false;
-
-		ChangedLastStep[CellID] = ChangedThisStep[CellID];
-		ChangedThisStep[CellID] = false;
+		EvalFlaggedLastStep[CellID] = EvalFlaggedThisStep[CellID];
+		EvalFlaggedThisStep[CellID] = false;
 
 	}/*, EParallelForFlags::BackgroundPriority*/);
 }
@@ -347,190 +389,188 @@ CellProcessor::CellProcessor(AAutomataDriver* Driver, TArray<int> CellIDs)
 }
 
 // Calculate state transitions for the cells this processor is responsible for
-	void CellProcessor::DoWork()
+void CellProcessor::DoWork()
+{
+	Driver->CellProcessorWork(CellIDs);
+}
+
+void UStandardXZGrid::InitializeGridParams(int NumXCellsInput, int NumZCellsInput)
+{
+	NumXCells = NumXCellsInput;
+	NumZCells = NumZCellsInput;
+}
+
+void UStandardXZGrid::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+}
+
+TSharedPtr<TArray<int>> UStandardXZGrid::RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
+{
+	TArray<int> CellIDs;
+	for (FIntPoint Coord : RawCoords)
 	{
-		//Driver->ProcessorWork(ClusterInstance, StartingIndex);
-		Driver->CellProcessorWork(CellIDs);
+		ApplyRule(CellIDs, Coord);
+	}
+	TSharedPtr<TArray<int>> Pointer = MakeShared<TArray<int>>(CellIDs);
+	return Pointer;
+}
+
+bool UStandardXZGrid::IsAxisTwisted(FIntPoint Coord, DeformedAxis TwistedAxis) const
+{
+	int NumAxisCells = 0;
+	int Index = 0;
+
+	switch (TwistedAxis)
+	{
+	case DeformedAxis::XAxis:
+		NumAxisCells = NumXCells;
+		Index = 0;
+		break;
+	case DeformedAxis::ZAxis:
+		NumAxisCells = NumZCells;
+		Index = 1;
+		break;
 	}
 
-	void UStandardXZGrid::InitializeGridParams(int NumXCellsInput, int NumZCellsInput)
+	if (Coord[Index] < 0)
 	{
-		NumXCells = NumXCellsInput;
-		NumZCells = NumZCellsInput;
+		return !(bool)(((abs(Coord[Index]) - 1) / NumAxisCells) % 2);
 	}
-
-	void UStandardXZGrid::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+	else
 	{
+		return bool((Coord[Index] / NumAxisCells) % 2);
 	}
+}
 
-	TSharedPtr<TArray<int>> UStandardXZGrid::RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
+void UStandardXZGrid::ParamsFromAxis(int& Index, int& NumAxisCells, DeformedAxis Axis) const
+{
+	switch (Axis)
 	{
-		TArray<int> CellIDs;
-		for (FIntPoint Coord : RawCoords)
-		{
-			ApplyRule(CellIDs, Coord);
-		}
-		TSharedPtr<TArray<int>> Pointer = MakeShared<TArray<int>>(CellIDs);
-		return Pointer;
+	case DeformedAxis::XAxis:
+		NumAxisCells = NumXCells;
+		Index = 0;
+		break;
+	case DeformedAxis::ZAxis:
+		NumAxisCells = NumZCells;
+		Index = 1;
+		break;
 	}
+}
 
-	bool UStandardXZGrid::IsAxisTwisted(FIntPoint Coord, DeformedAxis TwistedAxis) const
+void UStandardXZGrid::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const
+{
+	int NumAxisCells;
+	int Index;
+	ParamsFromAxis(Index, NumAxisCells, AxisToLoop);
+
+	if (Coord[Index] >= 0)
 	{
-		int NumAxisCells = 0;
-		int Index = 0;
-
-		switch (TwistedAxis)
-		{
-		case DeformedAxis::XAxis:
-			NumAxisCells = NumXCells;
-			Index = 0;
-			break;
-		case DeformedAxis::ZAxis:
-			NumAxisCells = NumZCells;
-			Index = 1;
-			break;
-		}
-
-		if (Coord[Index] < 0)
-		{
-			return !(bool)(((abs(Coord[Index]) - 1) / NumAxisCells) % 2);
-		}
-		else
-		{
-			return bool((Coord[Index] / NumAxisCells) % 2);
-		}
+		Coord[Index] = Coord[Index] % NumAxisCells;
 	}
-
-	void UStandardXZGrid::ParamsFromAxis(int& Index, int& NumAxisCells, DeformedAxis Axis) const
+	else
 	{
-		switch (Axis)
-		{
-		case DeformedAxis::XAxis:
-			NumAxisCells = NumXCells;
-			Index = 0;
-			break;
-		case DeformedAxis::ZAxis:
-			NumAxisCells = NumZCells;
-			Index = 1;
-			break;
-		}
+		Coord[Index] = NumAxisCells - (abs(Coord[Index]) % NumAxisCells);
 	}
+}
 
-	void UStandardXZGrid::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const
+void UStandardXZGrid::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const
+{
+	int NumAxisCells = 0;
+	int Index = 0;
+	ParamsFromAxis(Index, NumAxisCells, AxisToReverse);
+
+	LoopAxis(Coord, AxisToReverse);
+	Coord[Index] = NumAxisCells - Coord[Index] - 1;
+}
+
+void USphereRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+}
+
+void UCrossSurfaceRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+
+	bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
+	bool XAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::XAxis);
+
+	if (XAxisTwisted)
 	{
-		int NumAxisCells;
-		int Index;
-		ParamsFromAxis(Index, NumAxisCells, AxisToLoop);
-
-		if (Coord[Index] >= 0)
-		{
-			Coord[Index] = Coord[Index] % NumAxisCells;
-		}
-		else
-		{
-			Coord[Index] = NumAxisCells - (abs(Coord[Index]) % NumAxisCells);
-		}
+		ReverseAxis(Coord, DeformedAxis::ZAxis);
 	}
-
-	void UStandardXZGrid::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const
+	else
 	{
-		int NumAxisCells = 0;
-		int Index = 0;
-		ParamsFromAxis(Index, NumAxisCells, AxisToReverse);
-		
-		LoopAxis(Coord, AxisToReverse);
-		Coord[Index] = NumAxisCells - Coord[Index] - 1;
-	}
-
-	void USphereRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
-	{
-	}
-
-	void UCrossSurfaceRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
-	{
-
-		bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
-		bool XAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::XAxis);
-
-		if (XAxisTwisted)
-		{
-			ReverseAxis(Coord, DeformedAxis::ZAxis);
-		}
-		else
-		{
-			LoopAxis(Coord, DeformedAxis::ZAxis);
-		}
-
-		if (ZAxisTwisted)
-		{
-			ReverseAxis(Coord, DeformedAxis::XAxis);
-		}
-		else
-		{
-			LoopAxis(Coord, DeformedAxis::XAxis);
-		}
-
-		CellIDs.Add(CoordToCellID(Coord));
-	}
-
-	void UKleinRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
-	{
-
-		bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
-
-		if (ZAxisTwisted)
-		{
-			ReverseAxis(Coord, DeformedAxis::XAxis);
-		}
-		else
-		{
-			LoopAxis(Coord, DeformedAxis::XAxis);
-		}
-
 		LoopAxis(Coord, DeformedAxis::ZAxis);
-
-		CellIDs.Add(CoordToCellID(Coord));
-		
 	}
 
-	void UTorusRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+	if (ZAxisTwisted)
+	{
+		ReverseAxis(Coord, DeformedAxis::XAxis);
+	}
+	else
 	{
 		LoopAxis(Coord, DeformedAxis::XAxis);
-		LoopAxis(Coord, DeformedAxis::ZAxis);
+	}
+
+	CellIDs.Add(CoordToCellID(Coord));
+}
+
+void UKleinRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+
+	bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
+
+	if (ZAxisTwisted)
+	{
+		ReverseAxis(Coord, DeformedAxis::XAxis);
+	}
+	else
+	{
+		LoopAxis(Coord, DeformedAxis::XAxis);
+	}
+
+	LoopAxis(Coord, DeformedAxis::ZAxis);
+
+	CellIDs.Add(CoordToCellID(Coord));
+
+}
+
+void UTorusRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+	LoopAxis(Coord, DeformedAxis::XAxis);
+	LoopAxis(Coord, DeformedAxis::ZAxis);
+
+	CellIDs.Add(CoordToCellID(Coord));
+}
+
+void UCylinderRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+	if ((Coord[1] >= 0) && (Coord[1] < NumZCells))
+	{
+		LoopAxis(Coord, DeformedAxis::XAxis);
 
 		CellIDs.Add(CoordToCellID(Coord));
 	}
+}
 
-	void UCylinderRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+void UFiniteRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+{
+	int x = Coord[0];
+	int z = Coord[1];
+
+	if (((x >= 0) && (z >= 0)) && ((x < NumXCells) && (z < NumZCells)))
 	{
-		if ((Coord[1] >= 0) && (Coord[1] < NumZCells))
-		{
-			LoopAxis(Coord, DeformedAxis::XAxis);
-
-			CellIDs.Add(CoordToCellID(Coord));
-		}
+		CellIDs.Add(CoordToCellID(Coord));
 	}
+}
 
-	void UFiniteRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
-	{
-		int x = Coord[0];
-		int z = Coord[1];
+IGridRuleInterface* UBaseGridRuleFactory::CreateGridRuleInterface(BoundGridRuleset Ruleset)
+{
+	const TSubclassOf<UStandardXZGrid>* RuleTypeResult = RuleEnumToClass.Find(Ruleset);
+	TSubclassOf<class UStandardXZGrid> RuleType = RuleTypeResult ? *RuleTypeResult : UStandardXZGrid::StaticClass();
 
-		if (((x >= 0) && (z >= 0)) && ((x < NumXCells) && (z < NumZCells)))
-		{
-			CellIDs.Add(CoordToCellID(Coord));
-		}
-	}
+	UObject* CreatedObject = NewObject<UStandardXZGrid>(this->GetOuter(), RuleType);
 
-	IGridRuleInterface* UBaseGridRuleFactory::CreateGridRuleInterface(BoundGridRuleset Ruleset)
-	{
-		const TSubclassOf<UStandardXZGrid>* RuleTypeResult = RuleEnumToClass.Find(Ruleset);
-		TSubclassOf<class UStandardXZGrid> RuleType = RuleTypeResult ? *RuleTypeResult : UStandardXZGrid::StaticClass();
-
-		UObject* CreatedObject = NewObject<UStandardXZGrid>(this->GetOuter(), RuleType);
-
-		IGridRuleInterface* GridRule;
-		GridRule = Cast<IGridRuleInterface>(CreatedObject);
-		return GridRule;
-	}
-	
+	IGridRuleInterface* GridRule;
+	GridRule = Cast<IGridRuleInterface>(CreatedObject);
+	return GridRule;
+}
