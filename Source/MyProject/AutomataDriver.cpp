@@ -47,8 +47,6 @@ void AAutomataDriver::PostInitializeComponents()
 
 	InitializeCellNeighborhoods();
 
-	GridCoords = TArray<FIntPoint>();
-
 	InitializeCellNeighborsOf();
 
 	InitializeCellProcessors();
@@ -197,7 +195,6 @@ void AAutomataDriver::CreateGridRuleInterface()
 {
 	GridRuleFactory = NewObject<UBaseGridRuleFactory>(this, GridRuleFactoryType);
 	GridRule = GridRuleFactory->CreateGridRuleInterface(SelectedGridRule);
-	GridRule->InitializeGridParams(NumXCells, NumZCells);
 }
 
 void AAutomataDriver::InitializeCellNeighborhoods()
@@ -206,6 +203,9 @@ void AAutomataDriver::InitializeCellNeighborhoods()
 
 	ParallelFor(NumCells(), [&](int CellID)
 	{
+		TArray<TPair<FIntPoint, FIntPoint>> NeighborInfo;
+		NeighborInfo.Reserve(RelativeNeighborhood.Num());
+
 		TArray<FIntPoint> NeighborCoords = RelativeNeighborhood;
 		FIntPoint CellCoords = GridCoords[CellID];
 
@@ -215,6 +215,7 @@ void AAutomataDriver::InitializeCellNeighborhoods()
 			for (int i = 0; i < RelativeNeighborhood.Num(); ++i)
 			{
 				NeighborCoords[i] += CellCoords;
+				NeighborInfo.Add(TPair<FIntPoint, FIntPoint>(RelativeNeighborhood[i], NeighborCoords[i]));
 			}
 			break;
 
@@ -225,10 +226,13 @@ void AAutomataDriver::InitializeCellNeighborhoods()
 				NeighborCoords[i] += AxialCoord;
 				FIntPoint OffsetPoint = HexCoords::AxialToOffset(NeighborCoords[i]);
 				NeighborCoords[i] = OffsetPoint;
+
+				NeighborInfo.Add(TPair<FIntPoint, FIntPoint>(RelativeNeighborhood[i], NeighborCoords[i]));
 			}
 			break;
 		}
-		Neighborhoods[CellID] = GridRule->RawCoordsToCellIDs(NeighborCoords);
+		Neighborhoods[CellID] = GridRule->MapNeighborhood(NeighborInfo);
+
 	});
 }
 
@@ -242,9 +246,10 @@ void AAutomataDriver::InitializeCellNeighborsOf()
 
 	for (int i = 0; i < NumCells(); ++i)
 	{
-		for (int Neighbor : *(Neighborhoods[i]))
+		for (TPair<FIntPoint,int> Neighbor : *(Neighborhoods[i]))
 		{
-			NeighborsOf[Neighbor]->Add(i);
+			int NeighborID = Neighbor.Value;
+			NeighborsOf[NeighborID]->Add(i);
 		}
 	}
 }
@@ -329,9 +334,10 @@ int AAutomataDriver::GetCellAliveNeighbors(const int CellID) const
 {
 	//Query the cell's neighborhood to sum its alive neighbors
 	int AliveNeighbors = 0;
-	TArray<int> Neighborhood = *(Neighborhoods[CellID]);
-	for (int NeighborID : Neighborhood)
+	TMap<FIntPoint,int> Neighborhood = *(Neighborhoods[CellID]);
+	for (TPair<FIntPoint,int> Neighbor: Neighborhood)
 	{
+		int NeighborID = Neighbor.Value;
 		AliveNeighbors += CurrentStates[NeighborID];
 	}
 	return AliveNeighbors;
@@ -346,10 +352,6 @@ void AAutomataDriver::CellProcessorWork(const TArray<int>& CellIDs)
 
 void AAutomataDriver::StepComplete()
 {
-
-	// have all the cells' next state calculated before sending to material
-	// strictly speaking we only need to check the last one, but
-	// checking all for safety
 	for (FAsyncTask<CellProcessor>* Process : Processors)
 	{
 		Process->EnsureCompletion(false);
@@ -394,10 +396,13 @@ void CellProcessor::DoWork()
 	Driver->CellProcessorWork(CellIDs);
 }
 
-void UStandardXZGrid::InitializeGridParams(int NumXCellsInput, int NumZCellsInput)
+UStandardXZGrid::UStandardXZGrid()
 {
-	NumXCells = NumXCellsInput;
-	NumZCells = NumZCellsInput;
+	IGridSpecsInterface* Grid = Cast<IGridSpecsInterface>(GetOuter());
+	if (Grid)
+	{
+		Tie(NumXCells, NumZCells) = Grid->GetGridDimensions();
+	}
 }
 
 int UStandardXZGrid::ApplyRule(FIntPoint Coord) const
@@ -418,6 +423,25 @@ TSharedPtr<TArray<int>> UStandardXZGrid::RawCoordsToCellIDs(TArray<FIntPoint>& R
 	}
 	TSharedPtr<TArray<int>> Pointer = MakeShared<TArray<int>>(CellIDs);
 	return Pointer;
+}
+
+TSharedPtr<TMap<FIntPoint, int>> UStandardXZGrid::MapNeighborhood(TArray<TPair<FIntPoint, FIntPoint>> NeighborInfo) const
+{
+	TMap<FIntPoint,int> NeighborhoodMap;
+
+	for (int i = 0 ; i < NeighborInfo.Num(); ++i)
+	{
+		FIntPoint RawCoord = NeighborInfo[i].Value;
+		int CellID = ApplyRule(RawCoord);
+		if (CellID >= 0)
+		{
+			FIntPoint Key = NeighborInfo[i].Key;
+			NeighborhoodMap.Add(Key, CellID);
+		}
+	}
+	TSharedPtr<TMap<FIntPoint, int>> Pointer = MakeShared<TMap<FIntPoint, int>>(NeighborhoodMap);
+	return Pointer;
+
 }
 
 bool UStandardXZGrid::IsAxisTwisted(FIntPoint Coord, DeformedAxis TwistedAxis) const

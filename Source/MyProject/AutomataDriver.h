@@ -61,11 +61,13 @@ protected:
 
 public:
 
-	virtual void InitializeGridParams(int NumXCellsInput, int NumZCellsInput) override;
+	UStandardXZGrid();
 
 	virtual int ApplyRule(FIntPoint Coord) const;
 
 	virtual TSharedPtr<TArray<int>> RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const override;
+
+	virtual TSharedPtr<TMap<FIntPoint, int>> MapNeighborhood(TArray<TPair<FIntPoint, FIntPoint>> NeighborInfo) const override;
 
 	bool IsAxisTwisted(FIntPoint Coord, DeformedAxis TwistedAxis) const;
 
@@ -179,17 +181,10 @@ const TArray<FIntPoint> RelativeAxialNeighborhood
 	/*FIntPoint(-2,0), FIntPoint(0,-2)*/
 };
 
-UENUM()
-enum class CellShape : uint8
-{
-	Square,
-	Hex
-};
-
 
 
 UCLASS()
-class AAutomataDriver : public AActor
+class AAutomataDriver : public AActor, public IGridSpecsInterface
 {
 	GENERATED_BODY()
 
@@ -259,7 +254,7 @@ protected:
 	TArray<bool> EvalFlaggedThisStep;
 	TArray<bool> EvalFlaggedLastStep;
 
-	TArray<TSharedPtr<TArray<int>>> Neighborhoods;
+	TArray<TSharedPtr<TMap<FIntPoint,int>>> Neighborhoods;
 	TArray<TSharedPtr<TSet<int>>> NeighborsOf;
 
 	TArray<FIntPoint> GridCoords;
@@ -366,6 +361,16 @@ protected:
 public:
 
 	virtual void CellProcessorWork(const TArray<int>& CellIDs);
+
+	TTuple<int,int> GetGridDimensions() override
+	{
+		return TTuple<int,int>(NumXCells, NumZCells);
+	}
+
+	virtual CellShape GetCellShape() override
+	{
+		return Shape;
+	}
 
 };
 

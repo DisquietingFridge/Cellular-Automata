@@ -2,6 +2,26 @@
 
 #include "GridRuleInterface.generated.h"
 
+UENUM()
+enum class CellShape : uint8
+{
+	Square,
+	Hex
+};
+
+UENUM()
+enum class BoundGridRuleset : uint8
+{
+	Finite,
+	Cylinder,
+	Torus,
+	Klein,
+	CrossSurface UMETA(DisplayName = "Cross-surface"),
+	Sphere,
+	Test
+};
+
+
 UINTERFACE()
 class UGridRuleInterface : public UInterface
 {
@@ -24,19 +44,14 @@ public:
 
 		return MakeShared<TArray<int>>(NullNeighborhood);
 	}
+
+	virtual TSharedPtr<TMap<FIntPoint, int>> MapNeighborhood(TArray<TPair<FIntPoint,FIntPoint>> NeighborInfo) const
+	{
+		TMap<FIntPoint, int> NullMap;
+		return MakeShared<TMap<FIntPoint, int>>(NullMap);
+	}
 };
 
-UENUM()
-enum class BoundGridRuleset : uint8
-{
-	Finite,
-	Cylinder,
-	Torus,
-	Klein,
-	CrossSurface UMETA(DisplayName = "Cross-surface"),
-	Sphere,
-	Test
-};
 
 UENUM()
 enum class DeformedAxis : uint8
@@ -60,5 +75,28 @@ public:
 	virtual IGridRuleInterface* CreateGridRuleInterface(BoundGridRuleset Ruleset)
 	{
 		return nullptr;
+	}
+};
+
+UINTERFACE()
+class UGridSpecsInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class IGridSpecsInterface
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual TTuple<int,int> GetGridDimensions()
+	{
+		return TTuple<int, int>(0, 0);
+	}
+
+	virtual CellShape GetCellShape()
+	{
+		return CellShape::Square;
 	}
 };
