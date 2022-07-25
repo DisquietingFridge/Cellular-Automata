@@ -400,8 +400,9 @@ void UStandardXZGrid::InitializeGridParams(int NumXCellsInput, int NumZCellsInpu
 	NumZCells = NumZCellsInput;
 }
 
-void UStandardXZGrid::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UStandardXZGrid::ApplyRule(FIntPoint Coord) const
 {
+	return -1;
 }
 
 TSharedPtr<TArray<int>> UStandardXZGrid::RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
@@ -409,7 +410,11 @@ TSharedPtr<TArray<int>> UStandardXZGrid::RawCoordsToCellIDs(TArray<FIntPoint>& R
 	TArray<int> CellIDs;
 	for (FIntPoint Coord : RawCoords)
 	{
-		ApplyRule(CellIDs, Coord);
+		int CellID = ApplyRule(Coord);
+		if (CellID >= 0)
+		{
+			CellIDs.Add(CellID);
+		}
 	}
 	TSharedPtr<TArray<int>> Pointer = MakeShared<TArray<int>>(CellIDs);
 	return Pointer;
@@ -483,11 +488,12 @@ void UStandardXZGrid::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) 
 	Coord[Index] = NumAxisCells - Coord[Index] - 1;
 }
 
-void USphereRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int USphereRule::ApplyRule(FIntPoint Coord) const
 {
+	return -1;
 }
 
-void UCrossSurfaceRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UCrossSurfaceRule::ApplyRule(FIntPoint Coord) const
 {
 
 	bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
@@ -511,10 +517,10 @@ void UCrossSurfaceRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
 		LoopAxis(Coord, DeformedAxis::XAxis);
 	}
 
-	CellIDs.Add(CoordToCellID(Coord));
+	return CoordToCellID(Coord);
 }
 
-void UKleinRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UKleinRule::ApplyRule(FIntPoint Coord) const
 {
 
 	bool ZAxisTwisted = IsAxisTwisted(Coord, DeformedAxis::ZAxis);
@@ -530,37 +536,39 @@ void UKleinRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
 
 	LoopAxis(Coord, DeformedAxis::ZAxis);
 
-	CellIDs.Add(CoordToCellID(Coord));
+	return CoordToCellID(Coord);
 
 }
 
-void UTorusRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UTorusRule::ApplyRule(FIntPoint Coord) const
 {
 	LoopAxis(Coord, DeformedAxis::XAxis);
 	LoopAxis(Coord, DeformedAxis::ZAxis);
 
-	CellIDs.Add(CoordToCellID(Coord));
+	return CoordToCellID(Coord);
 }
 
-void UCylinderRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UCylinderRule::ApplyRule(FIntPoint Coord) const
 {
 	if ((Coord[1] >= 0) && (Coord[1] < NumZCells))
 	{
 		LoopAxis(Coord, DeformedAxis::XAxis);
 
-		CellIDs.Add(CoordToCellID(Coord));
+		return CoordToCellID(Coord);
 	}
+	else return -1;
 }
 
-void UFiniteRule::ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const
+int UFiniteRule::ApplyRule(FIntPoint Coord) const
 {
 	int x = Coord[0];
 	int z = Coord[1];
 
 	if (((x >= 0) && (z >= 0)) && ((x < NumXCells) && (z < NumZCells)))
 	{
-		CellIDs.Add(CoordToCellID(Coord));
+		return CoordToCellID(Coord);
 	}
+	else return -1;
 }
 
 IGridRuleInterface* UBaseGridRuleFactory::CreateGridRuleInterface(BoundGridRuleset Ruleset)

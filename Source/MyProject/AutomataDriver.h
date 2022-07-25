@@ -63,7 +63,7 @@ public:
 
 	virtual void InitializeGridParams(int NumXCellsInput, int NumZCellsInput) override;
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const;
+	virtual int ApplyRule(FIntPoint Coord) const;
 
 	virtual TSharedPtr<TArray<int>> RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const override;
 
@@ -88,7 +88,7 @@ class USphereRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 };
 
 UCLASS()
@@ -98,7 +98,7 @@ class UCrossSurfaceRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 };
 
 UCLASS()
@@ -108,7 +108,7 @@ class UKleinRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 
 };
 
@@ -119,7 +119,7 @@ class UTorusRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 
 };
 
@@ -130,7 +130,7 @@ class UCylinderRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 };
 
 UCLASS()
@@ -140,7 +140,7 @@ class UFiniteRule : public UStandardXZGrid
 
 public:
 
-	virtual void ApplyRule(TArray<int>& CellIDs, FIntPoint Coord) const override;
+	virtual int ApplyRule(FIntPoint Coord) const override;
 };
 
 const TMap<BoundGridRuleset, TSubclassOf<UStandardXZGrid>> RuleEnumToClass
