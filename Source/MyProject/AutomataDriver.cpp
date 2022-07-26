@@ -2,7 +2,7 @@
 #include "Materials/MaterialParameterCollectionInstance.h"
 #include "Misc/Char.h"
 #include "Async/Async.h"
-#include "Async/AsyncWork.h"
+#include "Algo/Accumulate.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFloat.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
@@ -31,8 +31,6 @@ void AAutomataDriver::PreInitializeComponents()
 
 	InitializeMaterial();
 
-	InitializeNiagaraSystem();
-
 	CreateGridRuleInterface();
 
 }
@@ -49,8 +47,6 @@ void AAutomataDriver::PostInitializeComponents()
 
 	InitializeCellNeighborsOf();
 
-	InitializeCellProcessors();
-
 	StartingDataSetup();
 }
 
@@ -61,8 +57,7 @@ void AAutomataDriver::StartingDataSetup()
 
 	SwitchTimeBuffer.Init(-2 * (StepPeriod * StepsToFade), NumCells());
 
-	Processors[0]->StartSynchronousTask();
-
+	AsyncState = Async(EAsyncExecution::TaskGraph, Work);
 }
 
 // Called when the game starts or when spawned
@@ -70,9 +65,8 @@ void AAutomataDriver::BeginPlay()
 {
 	Super::BeginPlay();
 
+	InitializeNiagaraSystem();
 	StepComplete();
-	NiagaraComponent->ActivateSystem();
-
 	// we are ready to start the iteration steps.
 	GetWorldTimerManager().SetTimer(StepTimer, this, &AAutomataDriver::TimerFired, StepPeriod, true);
 }
@@ -85,7 +79,7 @@ void AAutomataDriver::SetGridCoords()
 		ParallelFor(NumXCells, [&](int x)
 		{
 			int ID = z * NumXCells + x;
-			GridCoords[ID] = FIntPoint(x, z);
+			GridCoords[ID] = { x, z };
 		});
 	});
 }
@@ -148,6 +142,8 @@ void AAutomataDriver::InitializeNiagaraSystem()
 	NiagaraComponent->SetVariableMaterial(FName("User.Material"), DynMaterial);
 	NiagaraComponent->SetVariableInt(FName("User.XCount"), NumXCells);
 	NiagaraComponent->SetVariableInt(FName("User.ZCount"), NumZCells);
+
+	NiagaraComponent->ActivateSystem();
 }
 
 void AAutomataDriver::InitializeCellRules()
@@ -254,26 +250,11 @@ void AAutomataDriver::InitializeCellNeighborsOf()
 	}
 }
 
-void AAutomataDriver::InitializeCellProcessors()
+
+void AAutomataDriver::SetCellNextCustomData()
 {
-
-	TArray<int> ProcessorCells;
-	ProcessorCells.Reserve(NumCells());
-	for (int i = 0; i < NumCells(); ++i)
+	ParallelFor(NumCells(), [&](int32 CellID)
 	{
-		ProcessorCells.Add(i);
-	}
-	FAsyncTask<CellProcessor>* NewProcessor = new FAsyncTask<CellProcessor>(this, ProcessorCells);
-	Processors.Add(NewProcessor);
-}
-
-
-void AAutomataDriver::SetCellNextCustomData(const TArray<int>& CellIDs)
-{
-	ParallelFor(CellIDs.Num(), [&](int32 i)
-	{
-		int CellID = CellIDs[i];
-
 		if (EvalFlaggedLastStep[CellID])// register change based on state
 		{
 			// register change based on state
@@ -289,21 +270,14 @@ void AAutomataDriver::SetCellNextCustomData(const TArray<int>& CellIDs)
 				}
 			}
 		}
-	}/*, EParallelForFlags::BackgroundPriority*/);
-}
-
-void AAutomataDriver::SetCellNextCustomData(const int CellID)
-{
-	TArray<int> PackagedCellID{ CellID };
-	SetCellNextCustomData(PackagedCellID);
+	});
 }
 
 
-void AAutomataDriver::ApplyCellRules(const TArray<int>& CellIDs)
+void AAutomataDriver::ApplyCellRules()
 {
-	ParallelFor(CellIDs.Num(), [&](int32 i)
+	ParallelFor(NumCells(), [&](int32 CellID)
 	{
-		const int CellID = CellIDs[i];
 
 		if (EvalFlaggedLastStep[CellID])
 		{
@@ -324,12 +298,6 @@ void AAutomataDriver::ApplyCellRules(const TArray<int>& CellIDs)
 	});
 }
 
-void AAutomataDriver::ApplyCellRules(const int CellID)
-{
-	TArray<int> PackagedCellID{ CellID };
-	ApplyCellRules(PackagedCellID);
-}
-
 int AAutomataDriver::GetCellAliveNeighbors(const int CellID) const
 {
 	//Query the cell's neighborhood to sum its alive neighbors
@@ -337,30 +305,27 @@ int AAutomataDriver::GetCellAliveNeighbors(const int CellID) const
 	TMap<FIntPoint,int> Neighborhood = *(Neighborhoods[CellID]);
 	for (TPair<FIntPoint,int> Neighbor: Neighborhood)
 	{
-		int NeighborID = Neighbor.Value;
-		AliveNeighbors += CurrentStates[NeighborID];
+		AliveNeighbors += CurrentStates[Neighbor.Value];
 	}
 	return AliveNeighbors;
 }
 
-void AAutomataDriver::CellProcessorWork(const TArray<int>& CellIDs)
-{
-	ApplyCellRules(CellIDs);
 
-	SetCellNextCustomData(CellIDs);
+void AAutomataDriver::CellProcessorWork()
+{
+	ApplyCellRules();
+
+	SetCellNextCustomData();
 }
 
 void AAutomataDriver::StepComplete()
 {
-	for (FAsyncTask<CellProcessor>* Process : Processors)
-	{
-		Process->EnsureCompletion(false);
-	}
+	AsyncState.Wait();
 
 	TimestepPropertyShift();
 
 	// kick off calculation of next stage
-	Processors[0]->StartBackgroundTask();
+	AsyncState = Async(EAsyncExecution::TaskGraph, Work);
 }
 
 void AAutomataDriver::TimestepPropertyShift()
@@ -376,24 +341,12 @@ void AAutomataDriver::TimestepPropertyShift()
 		EvalFlaggedLastStep[CellID] = EvalFlaggedThisStep[CellID];
 		EvalFlaggedThisStep[CellID] = false;
 
-	}/*, EParallelForFlags::BackgroundPriority*/);
+	});
 }
 
 void AAutomataDriver::TimerFired()
 {
 	StepComplete();
-}
-
-CellProcessor::CellProcessor(AAutomataDriver* Driver, TArray<int> CellIDs)
-{
-	this->Driver = Driver;
-	this->CellIDs = CellIDs;
-}
-
-// Calculate state transitions for the cells this processor is responsible for
-void CellProcessor::DoWork()
-{
-	Driver->CellProcessorWork(CellIDs);
 }
 
 UStandardXZGrid::UStandardXZGrid()

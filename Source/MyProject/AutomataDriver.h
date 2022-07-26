@@ -7,49 +7,6 @@
 #include "NiagaraDataInterfaceArrayFloat.h"
 #include "AutomataDriver.generated.h"
 
-
-// CellProcessor is used to asynchronously update the cell states that it is responsible for,
-// so that these calculations don't cause a performance bottleneck by being carried out all at once
-
-// Asynchtask management in UE4 is poorly documented. There are seemingly many different kinds of manager types, and their benefits/tradeoffs are not clear to me.
-// Important elements of getting it to work are
-// 1. that the class inherits from FNonAbandonableTask,
-// 2. That it be a friend class of the FAsyncTask (other kinds of async classes may be possible)
-// 3. the GetStatId() function definition boilerplate needs to be in place
-
-
-class CellProcessor : public FNonAbandonableTask
-{
-	friend class FAsyncTask<CellProcessor>;
-
-public:
-
-	// Initialization largely consists of getting pointers from the Driver
-	CellProcessor(AAutomataDriver* Driver, TArray<int> CellIDs);
-
-
-protected:
-
-	// AutomataDriver this processor is working for
-	class AAutomataDriver* Driver = nullptr;
-
-	UPROPERTY()
-		TArray<int> CellIDs;
-
-
-public:
-
-	// FAsyncTask boilerplate function, defining the task it works on when called
-	// In this case: calculating updated cell states
-	void DoWork();
-
-	//FAsyncTask boilerplate. Do not remove
-	FORCEINLINE TStatId GetStatId() const
-	{
-		RETURN_QUICK_DECLARE_CYCLE_STAT(ExampleAsyncTask, STATGROUP_ThreadPoolAsyncTasks);
-	}
-};
-
 UCLASS()
 class UStandardXZGrid : public UObject, public IGridRuleInterface
 {
@@ -165,20 +122,19 @@ public:
 	virtual IGridRuleInterface* CreateGridRuleInterface(BoundGridRuleset Ruleset) override;
 };
 
-
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
-	FIntPoint(-1,-1), FIntPoint(0,-1), FIntPoint(1,-1),
-	FIntPoint(-1,0), FIntPoint(1,0),
-	FIntPoint(-1,1), FIntPoint(0,1), FIntPoint(1,1)
+	{-1,-1}, {0,-1}, {1,-1},
+	{-1,0}, {1,0},
+	{-1,1}, {0,1}, {1,1}
 };
 
 const TArray<FIntPoint> RelativeAxialNeighborhood
 {
-	FIntPoint(0,-1), FIntPoint(1,-1),
-	FIntPoint(1,0), FIntPoint(0,1),
-	FIntPoint(-1,1), FIntPoint(-1,0),
-	/*FIntPoint(-2,0), FIntPoint(0,-2)*/
+	{0,-1}, {1,-1},
+	{1,0}, {0,1},
+	{-1,1}, {-1,0}
+	/*{-2,0}, {0,-2}*/
 };
 
 
@@ -218,15 +174,11 @@ protected:
 
 	virtual void InitializeCellNeighborsOf();
 
-	virtual void InitializeCellProcessors();
-
 	virtual void StartingDataSetup();
 
-	virtual void SetCellNextCustomData(const TArray<int>& CellIDs);
-	virtual void SetCellNextCustomData(const int CellID);
+	virtual void SetCellNextCustomData();
 
-	virtual void ApplyCellRules(const TArray<int>& CellIDs);
-	virtual void ApplyCellRules(const int CellID);
+	virtual void ApplyCellRules();
 
 	virtual void TimestepPropertyShift();
 
@@ -262,8 +214,7 @@ protected:
 	TSubclassOf<class UBaseGridRuleFactory> GridRuleFactoryType = UBaseGridRuleFactory::StaticClass();
 	UBaseGridRuleFactory* GridRuleFactory;
 
-	// Array of CellProcessor objects that are responsible for incrementing an associated instance collection
-	TArray<FAsyncTask<CellProcessor>*> Processors;
+	FAsyncTask<AAutomataDriver>* Processor;
 
 	// Mesh that will be instanced to form the grid- typically a simple square
 	UPROPERTY(Blueprintable, EditAnywhere)
@@ -348,7 +299,6 @@ protected:
 
 	// Timer that fires once for each instance collection, and one additional time to signal the end of an automata step
 	FTimerHandle StepTimer;
-	FTimerHandle InstanceUpdateTimer;
 
 	// Handles automata step completion and transition into next step
 	UFUNCTION()
@@ -358,9 +308,15 @@ protected:
 	UFUNCTION()
 		void TimerFired();
 
-public:
+	virtual void CellProcessorWork();
 
-	virtual void CellProcessorWork(const TArray<int>& CellIDs);
+	TFuture<void> AsyncState;
+
+	TFunction<void()> Work = [&]() {
+		CellProcessorWork();
+	};
+
+	public:
 
 	TTuple<int,int> GetGridDimensions() override
 	{
