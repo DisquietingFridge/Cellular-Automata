@@ -17,8 +17,7 @@ enum class BoundGridRuleset : uint8
 	Torus,
 	Klein,
 	CrossSurface UMETA(DisplayName = "Cross-surface"),
-	Sphere,
-	Test
+	Sphere
 };
 
 

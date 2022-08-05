@@ -6,10 +6,6 @@
 #include "NiagaraDataInterfaceArrayFloat.h"
 #include "AutomataDriver.generated.h"
 
-
-
-
-
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
 	{-1,-1}, {0,-1}, {1,-1},
