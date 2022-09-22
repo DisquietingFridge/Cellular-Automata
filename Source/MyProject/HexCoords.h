@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "CoreMinimal.h"
+//#include "CoreMinimal.h"
 #include "Math/IntPoint.h"
 #include "HexCoords.generated.h"
 

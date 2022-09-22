@@ -1,10 +1,11 @@
 #pragma once
 
+
 #include "GridEdgeRules.h"
-#include "NiagaraFunctionLibrary.h"
-#include "NiagaraComponent.h"
-#include "NiagaraDataInterfaceArrayFloat.h"
 #include "AutomataDriver.generated.h"
+
+class UNiagaraSystem;
+class UNiagaraComponent;
 
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
@@ -196,9 +197,6 @@ protected:
 
 	TFuture<void> AsyncState;
 
-	TFunction<void()> Work = [&]() {
-		CellProcessorWork();
-	};
 
 	public:
 

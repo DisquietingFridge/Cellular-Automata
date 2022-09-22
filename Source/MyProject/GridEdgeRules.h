@@ -1,6 +1,5 @@
 #pragma once
 
-#include "CoreMinimal.h"
 #include "GridRuleInterface.h"
 #include "GridEdgeRules.generated.h"
 

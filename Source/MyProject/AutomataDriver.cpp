@@ -2,9 +2,12 @@
 #include "Materials/MaterialParameterCollectionInstance.h"
 #include "Misc/Char.h"
 #include "Async/Async.h"
+
+#include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFloat.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+
 #include "HexCoords.h"
 
 typedef UNiagaraDataInterfaceArrayFunctionLibrary NiagaraFuncs;
@@ -30,6 +33,7 @@ void AAutomataDriver::PreInitializeComponents()
 
 	InitializeMaterial();
 
+	// TODO: move gridrule construction (and destruction) into existing Neighborhoods creation function
 	CreateGridRuleInterface();
 
 }
@@ -56,7 +60,7 @@ void AAutomataDriver::StartingDataSetup()
 
 	SwitchTimeBuffer.Init(-2 * (StepPeriod * StepsToFade), NumCells());
 
-	AsyncState = Async(EAsyncExecution::TaskGraph, Work);
+	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {CellProcessorWork();});
 }
 
 // Called when the game starts or when spawned
@@ -194,6 +198,7 @@ void AAutomataDriver::InitializeCellStates()
 
 void AAutomataDriver::CreateGridRuleInterface()
 {
+	// TODO: remove GridRuleFactory as member variable?
 	GridRuleFactory = NewObject<UBaseGridRuleFactory>(this, GridRuleFactoryType);
 	GridRule = GridRuleFactory->CreateGridRuleInterface(SelectedGridRule);
 }
@@ -329,7 +334,7 @@ void AAutomataDriver::StepComplete()
 	TimestepPropertyShift();
 
 	// kick off calculation of next stage
-	AsyncState = Async(EAsyncExecution::TaskGraph, Work);
+	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {CellProcessorWork();});
 }
 
 void AAutomataDriver::TimestepPropertyShift()
