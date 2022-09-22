@@ -131,9 +131,6 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Torus;
 
-	UPROPERTY(Blueprintable, EditAnywhere)
-		CellShape Shape = CellShape::Hex;
-
 	// Probability when initializing that a cell will start off alive.
 	// Functionally ranges from 0 to 1.
 	UPROPERTY(Blueprintable, EditAnywhere)
