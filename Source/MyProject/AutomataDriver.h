@@ -1,7 +1,6 @@
 #pragma once
 
-
-#include "GridEdgeRules.h"
+#include "GridRules.h"
 #include "AutomataDriver.generated.h"
 
 class UNiagaraSystem;

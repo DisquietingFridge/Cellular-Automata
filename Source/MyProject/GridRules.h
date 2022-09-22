@@ -108,5 +108,48 @@ public:
 		return NumXCells * NumZCells;
 	}
 
+	TSharedPtr<TArray<FIntPoint>> GetCoords()
+	{
+		return MakeShared<TArray<FIntPoint>>(GridCoords);
+	}
+
+};
+
+UCLASS()
+class NeighborhoodMaker : public UObject
+{
+private:
+
+	int NumXCells = 0;
+	int NumZCells = 0;
+
+	TArray<FIntPoint> RelativeNeighborhood;
+
+	UGridSpecs* Grid = nullptr;
+
+	void MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords);
+
+	TPair<int*,int*> CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const;
+
+	void ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const;
+
+	void LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const;
+
+	bool IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const;
+
+public:
+
+	void Initialize(UGridSpecs* GridSpecs, TArray<FIntPoint> RelativeCoords)
+	{
+		this->Grid = GridSpecs;
+		Tie(NumXCells, NumZCells) = Grid->GetGridDimensions();
+		this->RelativeNeighborhood = RelativeCoords;
+	}
+
+	TSharedPtr<TArray<TArray<int>>> MakeNeighborhoods();
+
+	
+
+	
 
 };

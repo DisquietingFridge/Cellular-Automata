@@ -49,7 +49,7 @@ TSharedPtr<TMap<FIntPoint, int>> UStandardXZGrid::MapNeighborhood(TArray<TPair<F
 
 bool UStandardXZGrid::IsAxisTwisted(FIntPoint Coord, DeformedAxis TwistedAxis) const
 {
-	int NumAxisCells = 0;
+	int& NumAxisCells = 0;
 	int Index = 0;
 
 	switch (TwistedAxis)
