@@ -1,5 +1,6 @@
-#include "HexCoords.h"
 #include "GridRules.h"
+#include "HexCoords.h"
+
 
 void UGridSpecs::SetCoords()
 {
@@ -41,9 +42,10 @@ void UGridSpecs::SetTransforms()
 	}
 }
 
-void UGridSpecs::SetAndInit(TTuple<int, int> Dims, CellShape newShape)
+void UGridSpecs::SetAndInit(TTuple<int, int> Dims, float newOffset, CellShape newShape)
 {
 	Shape = newShape;
+	Offset = newOffset;
 	Tie(NumXCells, NumZCells) = Dims;
 
 	SetCoords();
@@ -51,12 +53,44 @@ void UGridSpecs::SetAndInit(TTuple<int, int> Dims, CellShape newShape)
 }
 
 
-TPair<int*, int*> NeighborhoodMaker::CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const
+void UNeighborhoodMaker::InitRuleFunc(BoundGridRuleset Rule)
+{
+
+	switch (Rule)
+	{
+	case BoundGridRuleset::Torus:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
+		break;
+	
+	default:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
+		break;
+	}
+}
+
+
+//TODO: Currently this implementation (adding to a set) does not allow for duplicate entries in the neighborhood. Desirable?
+void UNeighborhoodMaker::MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords)
+{
+	TSet<int> ConvertedCoords;
+	for (auto Coord : NeighborCoords)
+	{
+		if (ApplyEdgeRule.IsBound())
+		{
+			ConvertedCoords.Add(ApplyEdgeRule.Execute(Coord));
+		}	
+	}
+	ConvertedCoords.Remove(-1);
+
+	Neighborhood = ConvertedCoords.Array();
+}
+
+TPair<int*, const int*> UNeighborhoodMaker::CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const
 {
 	int* Component;
-	int* NumAxisCells;
+	const int* NumAxisCells;
 	
-	switch (TwistedAxis)
+	switch (Axis)
 	{
 	case DeformedAxis::XAxis:
 		NumAxisCells = &NumXCells;
@@ -68,51 +102,65 @@ TPair<int*, int*> NeighborhoodMaker::CompAndNumFromAxis(FIntPoint& Coord, Deform
 		break;
 	}
 
-	return {Component, NumAxisCells};
+	return TPair<int*, const int*>(Component, NumAxisCells);
 }
 
-void NeighborhoodMaker::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const
+void UNeighborhoodMaker::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const
 {
 	LoopAxis(Coord, AxisToReverse);
 
 	int* Component;
-	int* NumAxisCells;
+	const int* NumAxisCells;
 	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, AxisToReverse);
 
 	*Component = *NumAxisCells - *Component - 1;
 }
 
-void NeighborhoodMaker::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const
+void UNeighborhoodMaker::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const
 {
 	int* Component;
-	int* NumAxisCells;
+	const int* NumAxisCells;
 	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, AxisToLoop);
 
 	*Component = *Component >= 0	?	*Component % *NumAxisCells	:	*NumAxisCells - (abs(*Component) % *NumAxisCells);
 }
 
-bool NeighborhoodMaker::IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const
+bool UNeighborhoodMaker::IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const
 {
 	int* Component;
-	int* NumAxisCells;
+	const int* NumAxisCells;
 	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, TwistedAxis);
 
-	return *Component < 0	?	not ((abs(*Component) - 1) / *NumAxisCells) % 2		:	(*Component / *NumAxisCells) % 2;
+	return *Component < 0 ? 
+			! bool(		((abs(*Component) - 1) / *NumAxisCells) % 2) : 
+			bool(		(*Component / *NumAxisCells) % 2);
 }
 
-TSharedPtr<TArray<TSet<int>>> NeighborhoodMaker::MakeNeighborhoods()
+int UNeighborhoodMaker::TorusRule(FIntPoint& Coord)
+{
+	LoopAxis(Coord, DeformedAxis::XAxis);
+	LoopAxis(Coord, DeformedAxis::ZAxis);
+
+	return CoordToCellID(Coord);
+}
+
+void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, TArray<FIntPoint> RelativeNeighborhood, BoundGridRuleset Rule)
 {
 	using namespace HexCoords;
 
-	// Making sure to reserve all the memory we'll need, for parallelism thread-safety
-	TArray<int> MemoryDummy;
-	MemoryDummy.Reserve(RelativeNeighborhood.Num());
-	TArray<TArray<int>> Neighborhoods(MemoryDummy, Grid->NumCells());
+	InitRuleFunc(Rule);
 
 	auto Shape = Grid->GetCellShape();
 	TArray<FIntPoint>& GridCoords = *(Grid->GetCoords());
 
-	ParallelFor(Grid->NumCells(), [&](int CellID)
+	// Making sure to reserve all the memory we'll need, for parallelism thread-safety
+
+	//TODO: It's quite likely memory reservation does not work this way. Fix if needed (ditching parallelism as last resort)
+	TArray<int> MemoryDummy;
+	MemoryDummy.Reserve(RelativeNeighborhood.Num());
+	Neighborhoods.Init(MemoryDummy, GridCoords.Num());
+
+	ParallelFor(GridCoords.Num(), [&](int CellID)
 	{
 		TArray<FIntPoint> NeighborCoords = RelativeNeighborhood;
 		FIntPoint& CellCoord = GridCoords[CellID];
@@ -143,6 +191,28 @@ TSharedPtr<TArray<TSet<int>>> NeighborhoodMaker::MakeNeighborhoods()
 
 		MapNeighborhood(Neighborhoods[CellID],NeighborCoords);
 	});
+}
 
-	return MakeShared<TArray<TArray<int>>>(Neighborhoods);
+void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
+{
+	TArray<int> MemoryDummy;
+	NeighborsOf.Init(MemoryDummy, Neighborhoods.Num());
+
+	TSet<int> SetDummy;
+	TArray<TSet<int>> DupeGuard;
+	DupeGuard.Init(SetDummy, NeighborsOf.Num());
+
+	for (int i = 0; i < NeighborsOf.Num(); ++i)
+	{
+		for (int Neighbor : Neighborhoods[i])
+		{
+			DupeGuard[Neighbor].Add(i);
+		}
+	}
+
+	for (int i = 0; i < NeighborsOf.Num(); ++i)
+	{
+		NeighborsOf[i] = DupeGuard[i].Array();
+	}
+
 }

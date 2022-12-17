@@ -1,10 +1,15 @@
 #pragma once
 
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
 #include "GridRules.h"
-#include "AutomataDriver.generated.h"
+#include "AutomataFactory.generated.h"
 
 class UNiagaraSystem;
-class UNiagaraComponent;
+class UGridSpecs;
+class ULifelikeRule;
+class UAutomataDisplay;
+class UAutomataStepDriver;
 
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
@@ -21,84 +26,49 @@ const TArray<FIntPoint> RelativeAxialNeighborhood
 	/*{-2,0}, {0,-2}*/
 };
 
-
-
 UCLASS()
-class AAutomataDriver : public AActor, public IGridSpecsInterface
+class MYPROJECT_API AAutomataFactory : public AActor
 {
 	GENERATED_BODY()
-
+	
 public:
 	// Sets default values for this actor's properties
-	AAutomataDriver();
+	AAutomataFactory();
 
 protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
 
 	virtual void PreInitializeComponents() override;
 	virtual void PostInitializeComponents() override;
-	virtual void BeginPlay() override;
 
-	virtual void SetGridCoords();
+	void GridSetup();
 
-	virtual void SetRelativeNeighborhood();
-
-	virtual void InitializeMaterial();
-
-	virtual void InitializeCellTransforms();
-
-	virtual void InitializeNiagaraSystem();
-
-	virtual void InitializeCellRules();
-
-	virtual void InitializeCellStates();
-
-	virtual void CreateGridRuleInterface();
-
-	virtual void InitializeCellNeighborhoods();
-
-	virtual void InitializeCellNeighborsOf();
-
-	virtual void StartingDataSetup();
-
-	virtual void SetCellNextCustomData();
-
-	virtual void ApplyCellRules();
-
-	virtual void TimestepPropertyShift();
-
-	virtual int GetCellAliveNeighbors(int CellID) const;
+	void SetRelativeNeighborhood();
+	void RuleCalcSetup();
+	void DisplaySetup();
+	void DriverSetup();
 
 
+	UGridSpecs* Grid = nullptr;
+	ULifelikeRule* Lifelike = nullptr;
+	UAutomataDisplay* Display = nullptr;
+	UAutomataStepDriver* Driver = nullptr;
 
-	TArray<FVector> CellTransforms;
+	TArray<TArray<int>> Neighborhoods;
+	TArray<FIntPoint> RelativeNeighborhood = RelativeMooreNeighborhood;
 
 	UPROPERTY(Blueprintable, EditAnywhere)
-		UNiagaraSystem* ParticleSystem;
+		int NumXCells UMETA(DisplayName = "# cells wide") = 100;
 
-	UNiagaraComponent* NiagaraComponent;
+	UPROPERTY(Blueprintable, EditAnywhere)
+		int NumZCells UMETA(DisplayName = "# cells tall") = 100;
 
-	TArray<float> SwitchTimeBuffer;
+	UPROPERTY(Blueprintable, EditAnywhere)
+		CellShape Shape = CellShape::Square;
 
-	//Set that stores the birth rules for the automata
-	TArray<bool> BirthRules;
-	//Set that stores the survival rules for the automata
-	TArray<bool> SurviveRules;
-
-	TArray<bool> CurrentStates;
-	TArray<bool> NextStates;
-
-	TArray<bool> EvalFlaggedThisStep;
-	TArray<bool> EvalFlaggedLastStep;
-
-	TArray<TSharedPtr<TMap<FIntPoint,int>>> Neighborhoods;
-	TArray<TSharedPtr<TSet<int>>> NeighborsOf;
-
-	TArray<FIntPoint> GridCoords;
-
-	TSubclassOf<class UBaseGridRuleFactory> GridRuleFactoryType = UBaseGridRuleFactory::StaticClass();
-	UBaseGridRuleFactory* GridRuleFactory;
-
-	FAsyncTask<AAutomataDriver>* Processor;
+	UPROPERTY(Blueprintable, EditAnywhere)
+		UNiagaraSystem* ParticleSystem = nullptr;
 
 	// Mesh that will be instanced to form the grid- typically a simple square
 	UPROPERTY(Blueprintable, EditAnywhere)
@@ -109,26 +79,8 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		UMaterialInterface* Mat;
 
-	// Dynamic material (will use Mat as its basis)
-	UMaterialInstanceDynamic* DynMaterial;
-
 	UPROPERTY(Blueprintable, EditAnywhere)
-		int NumXCells UMETA(DisplayName = "# cells wide") = 100;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		int NumZCells UMETA(DisplayName = "# cells tall") = 100;
-
-	virtual int NumCells()
-	{
-		return NumXCells * NumZCells;
-	}
-
-	TArray<FIntPoint> RelativeNeighborhood = RelativeMooreNeighborhood;
-
-	IGridRuleInterface* GridRule;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Torus;
+		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Finite;
 
 	// Probability when initializing that a cell will start off alive.
 	// Functionally ranges from 0 to 1.
@@ -159,9 +111,6 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		float PhaseExponent = 201;
 
-	// Simple float used to store the time of the next step transition
-	float NextStepTime = 0;
-
 	// "On" state cell color
 	UPROPERTY(Blueprintable, EditAnywhere)
 		FLinearColor OnColor = FLinearColor(0.6, 0, 0.6, 1);
@@ -178,34 +127,7 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		float StepsToFade = 1000;
 
-	// Timer that fires once for each instance collection, and one additional time to signal the end of an automata step
-	FTimerHandle StepTimer;
-
-	// Handles automata step completion and transition into next step
-	UFUNCTION()
-		void StepComplete();
-
-	// Called when StepTimer is fired
-	UFUNCTION()
-		void TimerFired();
-
-	virtual void CellProcessorWork();
-
-	TFuture<void> AsyncState;
-
-
-	public:
-
-	TTuple<int,int> GetGridDimensions() override
-	{
-		return TTuple<int,int>(NumXCells, NumZCells);
-	}
-
-	virtual CellShape GetCellShape() override
-	{
-		return Shape;
-	}
-
+public:
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
 };
-
-

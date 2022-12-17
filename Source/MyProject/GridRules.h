@@ -28,30 +28,30 @@ enum class DeformedAxis : uint8
 };
 
 
-UCLASS()
-class UGridRuleInterface : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	virtual void InitializeGridParams(int NumXCells, int NumZCells)
-	{
-	}
-
-	virtual TSharedPtr<TArray<int>> RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
-	{
-		TArray<int> NullNeighborhood;
-
-		return MakeShared<TArray<int>>(NullNeighborhood);
-	}
-
-	virtual TSharedPtr<TMap<FIntPoint, int>> MapNeighborhood(TArray<TPair<FIntPoint,FIntPoint>> NeighborInfo) const
-	{
-		TMap<FIntPoint, int> NullMap;
-		return MakeShared<TMap<FIntPoint, int>>(NullMap);
-	}
-};
+//UCLASS()
+//class UGridRuleInterface : public UObject
+//{
+//	GENERATED_BODY()
+//
+//public:
+//
+//	virtual void InitializeGridParams(int NumXCells, int NumZCells)
+//	{
+//	}
+//
+//	virtual TSharedPtr<TArray<int>> RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
+//	{
+//		TArray<int> NullNeighborhood;
+//
+//		return MakeShared<TArray<int>>(NullNeighborhood);
+//	}
+//
+//	virtual TSharedPtr<TMap<FIntPoint, int>> MapNeighborhood(TArray<TPair<FIntPoint,FIntPoint>> NeighborInfo) const
+//	{
+//		TMap<FIntPoint, int> NullMap;
+//		return MakeShared<TMap<FIntPoint, int>>(NullMap);
+//	}
+//};
 
 
 UCLASS()
@@ -81,7 +81,7 @@ private:
 
 public:
 
-	void SetAndInit(TTuple<int, int> Dims, CellShape newShape);
+	void SetAndInit(TTuple<int, int> Dims, float newOffset, CellShape newShape);
 
 	TTuple<int,int> GetGridDimensions()
 	{
@@ -113,23 +113,37 @@ public:
 		return MakeShared<TArray<FIntPoint>>(GridCoords);
 	}
 
+	TSharedPtr<TArray<FVector>> GetTransforms()
+	{
+		return MakeShared<TArray<FVector>>(CellTransforms);
+	}
+
 };
 
 UCLASS()
-class NeighborhoodMaker : public UObject
+class UNeighborhoodMaker : public UObject
 {
+	GENERATED_BODY()
+
+	DECLARE_DELEGATE_RetVal_OneParam(int, CoordConverter, FIntPoint&);
+
 private:
+
+	CoordConverter ApplyEdgeRule;
 
 	int NumXCells = 0;
 	int NumZCells = 0;
-
-	TArray<FIntPoint> RelativeNeighborhood;
 
 	UGridSpecs* Grid = nullptr;
 
 	void MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords);
 
-	TPair<int*,int*> CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const;
+	TPair<int*, const int*> CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const;
+
+	int CoordToCellID(FIntPoint Coord) const
+	{
+		return Coord[1] * NumXCells		+ Coord[0];
+	}
 
 	void ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const;
 
@@ -137,16 +151,23 @@ private:
 
 	bool IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const;
 
+	int TorusRule(FIntPoint& Coord);
+
+	void InitRuleFunc(BoundGridRuleset Rule);
+
+
+
 public:
 
-	void Initialize(UGridSpecs* GridSpecs, TArray<FIntPoint> RelativeCoords)
+	void Initialize(UGridSpecs* GridSpecs)
 	{
 		this->Grid = GridSpecs;
 		Tie(NumXCells, NumZCells) = Grid->GetGridDimensions();
-		this->RelativeNeighborhood = RelativeCoords;
 	}
 
-	TSharedPtr<TArray<TArray<int>>> MakeNeighborhoods();
+
+	void MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, TArray<FIntPoint> RelativeNeighborhood, BoundGridRuleset Rule);
+	void MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods);
 
 	
 
