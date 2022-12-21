@@ -22,14 +22,6 @@ void UAutomataDisplay::InitMaterial(UMaterialInterface* Mat, TMap<FName, float> 
 	{
 		DynMaterial->SetVectorParameterValue(NameVec.Key, NameVec.Value);
 	}
-
-	/*DynMaterial->SetScalarParameterValue("PhaseExponent", PhaseExponent);
-	DynMaterial->SetScalarParameterValue("EmissiveMultiplier", EmissiveMultiplier);
-	DynMaterial->SetVectorParameterValue("OnColor", OnColor);
-	DynMaterial->SetVectorParameterValue("OffColor", OffColor);
-	DynMaterial->SetScalarParameterValue("FadePerSecond", 1 / (StepPeriod * StepsToFade));
-
-	DynMaterial->SetScalarParameterValue("IsHexagon", Shape == CellShape::Hex);*/
 }
 
 //TODO: Make this spawn at location, not attached to a root
@@ -55,12 +47,12 @@ void UAutomataDisplay::InitializeNiagaraSystem(UNiagaraSystem* System, USceneCom
 	NiagaraComponent->ActivateSystem();
 }
 
-void UAutomataDisplay::UpdateDisplay()
+void UAutomataDisplay::UpdateDisplay(const TArray<float>& SwitchSteps)
 {
 	//TODO: Make sure material / Niagara system accepts SwitchSteps instead of time-domain "SwitchTimes"
 	//TArray<float>& Dereffed = ;
 
-	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchSteps", *SwitchSteps);
+	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchSteps", SwitchSteps);
 
 	
 }

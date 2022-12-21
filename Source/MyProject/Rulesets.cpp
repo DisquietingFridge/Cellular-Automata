@@ -99,7 +99,7 @@ void ULifelikeRule::ApplyCellRules()
 				}
 			}
 		}
-	});
+	} /*,EParallelForFlags::ForceSingleThread*/);
 }
 
 void ULifelikeRule::TimestepPropertyShift()
@@ -127,6 +127,11 @@ int ULifelikeRule::GetCellAliveNeighbors(int CellID) const
 	return AliveNeighbors;
 }
 
+void ULifelikeRule::SetBroadcast(SendDisplayData Event)
+{
+	SwitchStepsReady = Event;
+}
+
 void ULifelikeRule::StepComplete()
 {
 	AsyncState.Wait();
@@ -134,9 +139,11 @@ void ULifelikeRule::StepComplete()
 	CalcStepSwitches();
 
 	TimestepPropertyShift();
+}
 
-	/*if (GEngine)
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::FromInt(int(NextStep - 1)));*/
+void ULifelikeRule::BroadcastData()
+{
+	SwitchStepsReady.Broadcast(SwitchStepBuffer);
 }
 
 void ULifelikeRule::StartNewStep()

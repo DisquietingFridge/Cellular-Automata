@@ -15,7 +15,7 @@ AAutomataFactory::AAutomataFactory()
 void AAutomataFactory::BeginPlay()
 {
 	Super::BeginPlay();
-	Display->UpdateDisplay();
+	Lifelike->BroadcastData();
 	Lifelike->StartNewStep();
 	Driver->SetTimer(StepPeriod);
 }
@@ -23,9 +23,6 @@ void AAutomataFactory::BeginPlay()
 void AAutomataFactory::PreInitializeComponents()
 {
 	Super::PreInitializeComponents();
-
-	//FTimerHandle Test;
-	//GetWorld()->GetTimerManager().SetTimer(Test, this, &AAutomataFactory::GridSetup, StepPeriod, true);
 
 }
 
@@ -75,7 +72,6 @@ void AAutomataFactory::RuleCalcSetup()
 	Lifelike->InitializeCellRules(BirthString, SurviveString);
 	Lifelike->InitializeCellStates(Probability);
 
-	//TODO this isn't playing nicely with syncing with the display, because initial switch states aren't set up.
 	Lifelike->StartingDataSetup();
 }
 
@@ -101,9 +97,11 @@ void AAutomataFactory::DisplaySetup()
 
 	Display->InitMaterial(Mat, ScalarMap, VecMap);
 
-	Display->SetSwitchSteps(Lifelike->GetSwitchStepPtr());
-
 	Display->InitializeNiagaraSystem(ParticleSystem, RootComponent, Grid);
+
+	ULifelikeRule::SendDisplayData DisplayLink;
+	DisplayLink.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);
+	Lifelike->SetBroadcast(DisplayLink);
 }
 
 void AAutomataFactory::DriverSetup()
@@ -113,11 +111,13 @@ void AAutomataFactory::DriverSetup()
 	UAutomataStepDriver::DriverStepEvent WaitAndFinalize;
 	WaitAndFinalize.AddUObject(Lifelike, &ULifelikeRule::StepComplete);
 
-	UAutomataStepDriver::DriverStepEvent UpdateAndNewStep;
-	UpdateAndNewStep.AddUObject(Lifelike, &ULifelikeRule::StartNewStep);
-	UpdateAndNewStep.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);
+	UAutomataStepDriver::DriverStepEvent UpdateDisplay;
+	UpdateDisplay.AddUObject(Lifelike, &ULifelikeRule::BroadcastData);
 
-	Driver->SetEvents(WaitAndFinalize, UpdateAndNewStep);
+	UAutomataStepDriver::DriverStepEvent NewStep;
+	NewStep.AddUObject(Lifelike, &ULifelikeRule::StartNewStep);
+
+	Driver->SetEvents(WaitAndFinalize, UpdateDisplay, NewStep);
 }
 
 

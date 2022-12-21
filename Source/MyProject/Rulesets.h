@@ -43,6 +43,10 @@ class ULifelikeRule : public UObject
 
 	public:
 
+	DECLARE_EVENT_OneParam(ULifelikeRule, SendDisplayData, const TArray<float>&)
+
+	SendDisplayData SwitchStepsReady;
+
 	void InitializeCellStates(float Probability);
 	void InitializeCellRules(FString BirthString, FString SurviveString);
 	void StartingDataSetup();
@@ -63,7 +67,10 @@ class ULifelikeRule : public UObject
 		return Temp.ToSharedRef();
 	}
 
+	void SetBroadcast(SendDisplayData Event);
+
 	void StepComplete();
+	void BroadcastData();
 	void StartNewStep();
 
 

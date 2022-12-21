@@ -108,14 +108,14 @@ public:
 		return NumXCells * NumZCells;
 	}
 
-	TSharedPtr<TArray<FIntPoint>> GetCoords()
+	TArray<FIntPoint>* GetCoords()
 	{
-		return MakeShared<TArray<FIntPoint>>(GridCoords);
+		return &GridCoords;
 	}
 
-	TSharedPtr<TArray<FVector>> GetTransforms()
+	TArray<FVector>* GetTransforms()
 	{
-		return MakeShared<TArray<FVector>>(CellTransforms);
+		return &CellTransforms;
 	}
 
 };

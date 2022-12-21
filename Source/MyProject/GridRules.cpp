@@ -35,7 +35,7 @@ void UGridSpecs::SetTransforms()
 			TransformResult = VectorConversion(Coord);
 			break;
 		case CellShape::Hex:
-			TransformResult = VectorConversion(OffsetToTransform(Coord));
+			TransformResult = VectorConversion(OffsetToTransform(Coord, OffsetLayout::OddR));
 			break;
 		}
 		CellTransforms.Add(TransformResult);
@@ -122,7 +122,12 @@ void UNeighborhoodMaker::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) con
 	const int* NumAxisCells;
 	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, AxisToLoop);
 
-	*Component = *Component >= 0	?	*Component % *NumAxisCells	:	*NumAxisCells - (abs(*Component) % *NumAxisCells);
+	//int& ComponentDeref = *Component;
+	//const int& NumAxisCellsDeref = *NumAxisCells;
+
+
+	//TODO: Currently this math does not account for double-wraparounds 
+	*Component = *Component >= 0 ? *Component % *NumAxisCells : *NumAxisCells - ((abs(*Component) - 1) % (*NumAxisCells)) - 1;
 }
 
 bool UNeighborhoodMaker::IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const
@@ -190,7 +195,7 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 		}
 
 		MapNeighborhood(Neighborhoods[CellID],NeighborCoords);
-	});
+	},EParallelForFlags::ForceSingleThread);
 }
 
 void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
