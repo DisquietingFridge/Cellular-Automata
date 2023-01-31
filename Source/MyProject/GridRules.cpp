@@ -55,7 +55,7 @@ void UGridSpecs::SetAndInit(TTuple<int, int> Dims, float newOffset, CellShape ne
 
 void UNeighborhoodMaker::InitRuleFunc(BoundGridRuleset Rule)
 {
-
+	//TODO: Bind remaining rules.
 	switch (Rule)
 	{
 	case BoundGridRuleset::Torus:
@@ -125,8 +125,6 @@ void UNeighborhoodMaker::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) con
 	//int& ComponentDeref = *Component;
 	//const int& NumAxisCellsDeref = *NumAxisCells;
 
-
-	//TODO: Currently this math does not account for double-wraparounds 
 	*Component = *Component >= 0 ? *Component % *NumAxisCells : *NumAxisCells - ((abs(*Component) - 1) % (*NumAxisCells)) - 1;
 }
 
@@ -161,9 +159,7 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 	// Making sure to reserve all the memory we'll need, for parallelism thread-safety
 
 	//TODO: It's quite likely memory reservation does not work this way. Fix if needed (ditching parallelism as last resort)
-	TArray<int> MemoryDummy;
-	MemoryDummy.Reserve(RelativeNeighborhood.Num());
-	Neighborhoods.Init(MemoryDummy, GridCoords.Num());
+	Neighborhoods.Init(TArray<int>(), GridCoords.Num());
 
 	ParallelFor(GridCoords.Num(), [&](int CellID)
 	{
@@ -195,7 +191,7 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 		}
 
 		MapNeighborhood(Neighborhoods[CellID],NeighborCoords);
-	},EParallelForFlags::ForceSingleThread);
+	}/*,EParallelForFlags::ForceSingleThread*/);
 }
 
 void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
