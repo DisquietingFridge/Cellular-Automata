@@ -20,39 +20,6 @@ enum class BoundGridRuleset : uint8
 	Sphere
 };
 
-UENUM()
-enum class DeformedAxis : uint8
-{
-	XAxis,
-	ZAxis
-};
-
-
-//UCLASS()
-//class UGridRuleInterface : public UObject
-//{
-//	GENERATED_BODY()
-//
-//public:
-//
-//	virtual void InitializeGridParams(int NumXCells, int NumZCells)
-//	{
-//	}
-//
-//	virtual TSharedPtr<TArray<int>> RawCoordsToCellIDs(TArray<FIntPoint>& RawCoords) const
-//	{
-//		TArray<int> NullNeighborhood;
-//
-//		return MakeShared<TArray<int>>(NullNeighborhood);
-//	}
-//
-//	virtual TSharedPtr<TMap<FIntPoint, int>> MapNeighborhood(TArray<TPair<FIntPoint,FIntPoint>> NeighborInfo) const
-//	{
-//		TMap<FIntPoint, int> NullMap;
-//		return MakeShared<TMap<FIntPoint, int>>(NullMap);
-//	}
-//};
-
 
 UCLASS()
 class UGridSpecs : public UObject
@@ -138,20 +105,28 @@ private:
 
 	void MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords);
 
-	TPair<int*, const int*> CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const;
-
 	int CoordToCellID(FIntPoint Coord) const
 	{
 		return Coord[1] * NumXCells		+ Coord[0];
 	}
 
-	void ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const;
+	void ReverseAxis(int & Component, int NumAxisCells) const;
 
-	void LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const;
+	void LoopAxis(int & Component, int NumAxisCells) const;
 
-	bool IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const;
+	bool IsAxisTwisted(int & Component, int NumAxisCells) const;
 
 	int TorusRule(FIntPoint& Coord);
+
+	int FiniteRule(FIntPoint& Coord);
+
+	int CylinderRule(FIntPoint& Coord);
+
+	int KleinRule(FIntPoint& Coord);
+
+	int CrossSurfaceRule(FIntPoint& Coord);
+
+	int SphereRule(FIntPoint& Coord);
 
 	void InitRuleFunc(BoundGridRuleset Rule);
 

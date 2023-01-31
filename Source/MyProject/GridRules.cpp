@@ -61,6 +61,27 @@ void UNeighborhoodMaker::InitRuleFunc(BoundGridRuleset Rule)
 	case BoundGridRuleset::Torus:
 		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
 		break;
+
+	case BoundGridRuleset::Finite:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::FiniteRule);
+		break;
+
+	case BoundGridRuleset::Cylinder:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::CylinderRule);
+		break;
+
+	case BoundGridRuleset::Klein:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::KleinRule);
+		break;
+
+	case BoundGridRuleset::CrossSurface:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::CrossSurfaceRule);
+		break;
+
+	case BoundGridRuleset::Sphere:
+		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::SphereRule);
+		break;
+
 	
 	default:
 		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
@@ -85,64 +106,174 @@ void UNeighborhoodMaker::MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntP
 	Neighborhood = ConvertedCoords.Array();
 }
 
-TPair<int*, const int*> UNeighborhoodMaker::CompAndNumFromAxis(FIntPoint& Coord, DeformedAxis Axis) const
+void UNeighborhoodMaker::ReverseAxis(int & Component, int NumAxisCells) const
 {
-	int* Component;
-	const int* NumAxisCells;
-	
-	switch (Axis)
-	{
-	case DeformedAxis::XAxis:
-		NumAxisCells = &NumXCells;
-		Component = &(Coord[0]);
-		break;
-	case DeformedAxis::ZAxis:
-		NumAxisCells = &NumZCells;
-		Component = &(Coord[1]);
-		break;
-	}
-
-	return TPair<int*, const int*>(Component, NumAxisCells);
+	LoopAxis(Component, NumAxisCells);
+	Component = NumAxisCells - Component - 1;
 }
 
-void UNeighborhoodMaker::ReverseAxis(FIntPoint& Coord, DeformedAxis AxisToReverse) const
+void UNeighborhoodMaker::LoopAxis(int & Component, int NumAxisCells) const
 {
-	LoopAxis(Coord, AxisToReverse);
-
-	int* Component;
-	const int* NumAxisCells;
-	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, AxisToReverse);
-
-	*Component = *NumAxisCells - *Component - 1;
+	Component = Component >= 0 ? 
+				Component % NumAxisCells : 
+				NumAxisCells - ((abs(Component) - 1) % (NumAxisCells)) - 1;
 }
 
-void UNeighborhoodMaker::LoopAxis(FIntPoint& Coord, DeformedAxis AxisToLoop) const
+bool UNeighborhoodMaker::IsAxisTwisted(int & Component, int NumAxisCells) const
 {
-	int* Component;
-	const int* NumAxisCells;
-	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, AxisToLoop);
-
-	//int& ComponentDeref = *Component;
-	//const int& NumAxisCellsDeref = *NumAxisCells;
-
-	*Component = *Component >= 0 ? *Component % *NumAxisCells : *NumAxisCells - ((abs(*Component) - 1) % (*NumAxisCells)) - 1;
-}
-
-bool UNeighborhoodMaker::IsAxisTwisted(FIntPoint& Coord, DeformedAxis TwistedAxis) const
-{
-	int* Component;
-	const int* NumAxisCells;
-	Tie(Component, NumAxisCells) = CompAndNumFromAxis(Coord, TwistedAxis);
-
-	return *Component < 0 ? 
-			! bool(		((abs(*Component) - 1) / *NumAxisCells) % 2) : 
-			bool(		(*Component / *NumAxisCells) % 2);
+	return	Component < 0 ? 
+			! bool(		((abs(Component) - 1) / NumAxisCells) % 2) : 
+			bool(		(Component / NumAxisCells) % 2);
 }
 
 int UNeighborhoodMaker::TorusRule(FIntPoint& Coord)
 {
-	LoopAxis(Coord, DeformedAxis::XAxis);
-	LoopAxis(Coord, DeformedAxis::ZAxis);
+
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	LoopAxis(XCoord, NumXCells);
+	LoopAxis(ZCoord, NumZCells);
+
+	return CoordToCellID(Coord);
+}
+
+int UNeighborhoodMaker::FiniteRule(FIntPoint& Coord)
+{
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	if (((XCoord >= 0) && (XCoord < NumXCells)) && ((ZCoord >= 0) && (ZCoord < NumZCells)))
+	{
+		return CoordToCellID(Coord);
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int UNeighborhoodMaker::CylinderRule(FIntPoint& Coord)
+{
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	if ((ZCoord >= 0) && (ZCoord < NumZCells))
+	{
+		LoopAxis(XCoord, NumXCells);
+		return CoordToCellID(Coord);
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int UNeighborhoodMaker::KleinRule(FIntPoint& Coord)
+{
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	if (IsAxisTwisted(ZCoord, NumZCells))
+	{
+		ReverseAxis(XCoord, NumXCells);
+	}
+	else
+	{
+		LoopAxis(XCoord, NumXCells);
+	}
+
+	LoopAxis(ZCoord, NumZCells);
+
+	return CoordToCellID(Coord);
+}
+
+int UNeighborhoodMaker::CrossSurfaceRule(FIntPoint& Coord)
+{
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	if (IsAxisTwisted(XCoord, NumXCells))
+	{
+		ReverseAxis(ZCoord, NumZCells);
+	}
+	else
+	{
+		LoopAxis(ZCoord, NumZCells);
+	}
+
+	if (IsAxisTwisted(ZCoord, NumZCells))
+	{
+		ReverseAxis(XCoord, NumXCells);
+	}
+	else
+	{
+		LoopAxis(XCoord, NumXCells);
+	}
+
+	return CoordToCellID(Coord);
+
+
+}
+
+int UNeighborhoodMaker::SphereRule(FIntPoint& Coord)
+{
+	int& XCoord = Coord[0];
+	int& ZCoord = Coord[1];
+
+	bool XAxisCrossed = IsAxisTwisted(XCoord, NumXCells);
+	bool ZAxisCrossed = IsAxisTwisted(ZCoord, NumZCells);
+
+	int Rotation = XAxisCrossed + 2 * ZAxisCrossed;
+
+	// how to virtually change grid orientation (cell is considered "fixed" as grid rotates around it)
+	switch (Rotation)
+	{
+	case 0:
+		// 0 degrees
+		break;
+
+	case 1:
+		// 90 degrees CW
+
+		LoopAxis(XCoord, NumXCells);
+		ReverseAxis(ZCoord, NumZCells);
+
+		Swap(XCoord, ZCoord);
+
+		LoopAxis(XCoord, NumXCells);
+		LoopAxis(ZCoord, NumZCells);
+
+		break;
+
+		// X axis becomes Z axis
+		// Z axis becomes -X axis
+
+	case 2:
+		// 270 degrees CW
+
+		ReverseAxis(XCoord, NumXCells);
+		LoopAxis(ZCoord, NumZCells);
+
+		Swap(XCoord, ZCoord);
+
+		LoopAxis(XCoord, NumXCells);
+		LoopAxis(ZCoord, NumZCells);
+
+		// X axis becomes -Z axis
+		// Z axis becomes X axis
+
+	case 3:
+
+		//180 degrees CW
+
+		ReverseAxis(XCoord, NumXCells);
+		ReverseAxis(ZCoord, NumZCells);
+		break;
+
+		// X axis becomes -X axis
+		// Z axis becomes -Z axis
+	}
 
 	return CoordToCellID(Coord);
 }
