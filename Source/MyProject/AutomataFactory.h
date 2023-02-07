@@ -27,6 +27,11 @@ const TArray<FIntPoint> RelativeAxialNeighborhood
 	/*{-2,0}, {0,-2}*/
 };
 
+const TArray<FIntPoint> RelativeCardinalNeighborhood
+{
+	{0,1}, {1,0}, {0, -1}, {-1,0}
+};
+
 UCLASS()
 class MYPROJECT_API AAutomataFactory : public AActor
 {
@@ -52,8 +57,16 @@ protected:
 
 
 	UGridSpecs* Grid = nullptr;
-	IAutomata* Automata = nullptr;
+
+	UPROPERTY()
+	UObject* Automata = nullptr;
+
+	IAutomata* AutomataInterfacePtr = nullptr;
+
+	UPROPERTY()
 	UAutomataDisplay* Display = nullptr;
+
+	UPROPERTY()
 	UAutomataStepDriver* Driver = nullptr;
 
 	TArray<TArray<int>> Neighborhoods;

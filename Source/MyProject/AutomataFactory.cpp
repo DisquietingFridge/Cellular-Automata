@@ -16,8 +16,9 @@ AAutomataFactory::AAutomataFactory()
 void AAutomataFactory::BeginPlay()
 {
 	Super::BeginPlay();
-	Automata->BroadcastData();
-	Automata->StartNewStep();
+
+	AutomataInterfacePtr->BroadcastData();
+	AutomataInterfacePtr->StartNewStep();
 	Driver->SetTimer(StepPeriod);
 }
 
@@ -51,6 +52,12 @@ void AAutomataFactory::GridSetup()
 
 void AAutomataFactory::SetRelativeNeighborhood()
 {
+	if (AutomataType == UAntRule::StaticClass())
+	{
+		RelativeNeighborhood = RelativeCardinalNeighborhood;
+		return;
+	}
+
 	switch (Shape)
 	{
 	case CellShape::Square:
@@ -61,22 +68,29 @@ void AAutomataFactory::SetRelativeNeighborhood()
 		break;
 	default:
 		RelativeNeighborhood = RelativeMooreNeighborhood;
+		break;
 	}
 }
 
 void AAutomataFactory::RuleCalcSetup()
 {
-	Automata = Cast<IAutomata>(NewObject<UClass>(this, AutomataType));
+	Automata = NewObject<UObject>(GetWorld(), AutomataType);
+
+	AutomataInterfacePtr = Cast<IAutomata>(Automata);
+	if (AutomataInterfacePtr != nullptr)
+	{
+		AutomataInterfacePtr->SetNeighborhoods(Neighborhoods);
+	}
+	
 
 	ULifelikeRule* Lifelike = Cast<ULifelikeRule>(Automata);
 	if (Lifelike != nullptr)
 	{
-		Lifelike->SetNeighborhoods(Neighborhoods);
-		Lifelike->SetNeighborsOf(Neighborhoods);
 		Lifelike->InitializeCellRules(BirthString, SurviveString);
 		Lifelike->InitializeCellStates(Probability);
-		Lifelike->StartingDataSetup();
+		return;
 	}
+
 }
 
 void AAutomataFactory::DisplaySetup()
@@ -86,7 +100,7 @@ void AAutomataFactory::DisplaySetup()
 		return;
 	}
 
-	Display = NewObject<UAutomataDisplay>(this);
+	Display = NewObject<UAutomataDisplay>(GetWorld());
 
 	TMap<FName, FLinearColor> VecMap;
 	VecMap.Add("OnColor",OnColor);
@@ -105,12 +119,21 @@ void AAutomataFactory::DisplaySetup()
 
 	IAutomata::SendDisplayData DisplayLink;
 	DisplayLink.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);
-	Automata->SetBroadcast(DisplayLink);
+
+	if (AutomataInterfacePtr != nullptr)
+	{
+		AutomataInterfacePtr->SetBroadcast(DisplayLink);
+	}
+	
 }
 
 void AAutomataFactory::DriverSetup()
 {
-	Driver = NewObject<UAutomataStepDriver>(this);
+	Driver = NewObject<UAutomataStepDriver>(GetWorld());
 
-	Driver->SetAutomata(Automata);
+	if (AutomataInterfacePtr != nullptr)
+	{
+		Driver->SetAutomata(AutomataInterfacePtr);
+	}
+	
 }

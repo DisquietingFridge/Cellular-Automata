@@ -325,26 +325,26 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 	}/*,EParallelForFlags::ForceSingleThread*/);
 }
 
-void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
-{
-	TArray<int> MemoryDummy;
-	NeighborsOf.Init(MemoryDummy, Neighborhoods.Num());
-
-	TSet<int> SetDummy;
-	TArray<TSet<int>> DupeGuard;
-	DupeGuard.Init(SetDummy, NeighborsOf.Num());
-
-	for (int i = 0; i < NeighborsOf.Num(); ++i)
-	{
-		for (int Neighbor : Neighborhoods[i])
-		{
-			DupeGuard[Neighbor].Add(i);
-		}
-	}
-
-	for (int i = 0; i < NeighborsOf.Num(); ++i)
-	{
-		NeighborsOf[i] = DupeGuard[i].Array();
-	}
-
-}
+//void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
+//{
+//	TArray<int> MemoryDummy;
+//	NeighborsOf.Init(MemoryDummy, Neighborhoods.Num());
+//
+//	TSet<int> SetDummy;
+//	TArray<TSet<int>> DupeGuard;
+//	DupeGuard.Init(SetDummy, NeighborsOf.Num());
+//
+//	for (int i = 0; i < NeighborsOf.Num(); ++i)
+//	{
+//		for (int Neighbor : Neighborhoods[i])
+//		{
+//			DupeGuard[Neighbor].Add(i);
+//		}
+//	}
+//
+//	for (int i = 0; i < NeighborsOf.Num(); ++i)
+//	{
+//		NeighborsOf[i] = DupeGuard[i].Array();
+//	}
+//
+//}

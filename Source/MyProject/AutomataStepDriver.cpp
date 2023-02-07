@@ -11,6 +11,14 @@ void UAutomataStepDriver::TimerFired()
 	Automata->StartNewStep();
 }
 
+void UAutomataStepDriver::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	if (GEngine)
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, "Aggggh I'm being destroyed noooo");
+}
+
 void UAutomataStepDriver::SetAutomata(IAutomata* newAutomata)
 {
 	Automata = newAutomata;

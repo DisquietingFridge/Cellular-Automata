@@ -16,6 +16,8 @@ public:
 
 	DECLARE_EVENT_OneParam(IAutomata, SendDisplayData, const TArray<float>&)
 
+	virtual void SetNeighborhoods(TArray<TArray<int>> Neighbs) {}
+
 	virtual void StepComplete() {}
 	virtual void BroadcastData() {}
 	virtual void StartNewStep() {}

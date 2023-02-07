@@ -8,7 +8,8 @@ UCLASS()
 class MYPROJECT_API UAutomataStepDriver : public UObject
 {
 	GENERATED_BODY()
-	
+
+		void BeginDestroy() override;
 
 	public:
 

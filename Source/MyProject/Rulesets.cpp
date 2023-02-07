@@ -1,11 +1,26 @@
 #include "Rulesets.h"
 
-void ULifelikeRule::StartingDataSetup()
+void ULifelikeRule::PostNeighborhoodSetup()
 {
+	int NumCells = Neighborhoods.Num();
+
 	//TODO: should this start at 1?
 	NextStep = 0;
 
-	SwitchStepBuffer.Init(-2, Neighborhoods.Num());
+	SwitchStepBuffer.Init(-2, NumCells);
+
+	NextStates.Init(false, NumCells);
+
+	EvalFlaggedThisStep.Init(true, NumCells);
+	EvalFlaggedLastStep.Init(true, NumCells);
+}
+
+void ULifelikeRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
+{
+	Neighborhoods = Neighbs;
+
+	AutomataFuncs::MakeNeighborsOf(NeighborsOf, Neighborhoods);
+	PostNeighborhoodSetup();
 }
 
 void ULifelikeRule::InitializeCellStates(float Probability)
@@ -18,12 +33,6 @@ void ULifelikeRule::InitializeCellStates(float Probability)
 	{
 		CurrentStates.Add(FMath::FRandRange(0, TNumericLimits<int32>::Max() - 1) < Probability * TNumericLimits<int32>::Max());
 	}
-
-	NextStates.Init(false, NumCells);
-
-	EvalFlaggedThisStep.Init(true, NumCells);
-	EvalFlaggedLastStep.Init(true, NumCells);
-
 }
 
 void ULifelikeRule::InitializeCellRules(FString BirthString, FString SurviveString)
@@ -146,4 +155,112 @@ void ULifelikeRule::StartNewStep()
 
 }
 
+void UAntRule::MoveAnts()
+{
+	int NumAnts = AntPositions.Num();
+	int NumStates = CellSequence.Num();
 
+	for (int Ant = 0; Ant < NumAnts; ++Ant)
+	{
+
+		int& AntCell = AntPositions[Ant];
+		int& AntOrientation = AntOrientations[Ant];
+
+		TArray<int> AntNeighborhood = Neighborhoods[AntCell];
+		int NumNeighbs = AntNeighborhood.Num();
+		
+		int& HostState = CurrentStates[AntCell];
+		int OldHostState = HostState;
+
+		// change ant orientation
+		AntOrientation += CellSequence[HostState] + NumNeighbs;
+		AntOrientation %= NumNeighbs;
+
+		// change host cell state
+		HostState += 1;
+		HostState %= NumStates;
+
+		//update display data
+		if (HostState != OldHostState)
+		{
+			if (HostState == 1)
+			{
+				SwitchStepBuffer[AntCell] = TNumericLimits<float>::Max();
+			}
+			else
+			{
+				SwitchStepBuffer[AntCell] = NextStep;
+			}
+		}
+
+		// move ant along
+		AntCell = AntNeighborhood[AntOrientation];
+	}
+}
+
+void UAntRule::PostNeighborhoodSetup()
+{
+	int NumCells = Neighborhoods.Num();
+
+	NextStep = 0;
+
+	SwitchStepBuffer.Init(-2, NumCells);
+
+	CurrentStates.Init(0, NumCells);
+}
+
+void UAntRule::InitializeAnts(int NumAnts)
+{
+}
+
+void UAntRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
+{
+	Neighborhoods = Neighbs;
+	PostNeighborhoodSetup();
+}
+
+void UAntRule::StepComplete()
+{
+	AsyncState.Wait();
+	NextStep++;
+}
+
+void UAntRule::BroadcastData()
+{
+	SwitchStepsReady.Broadcast(SwitchStepBuffer);
+}
+
+void UAntRule::StartNewStep()
+{
+	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {MoveAnts(); });
+	//MoveAnts();
+}
+
+void UAntRule::SetBroadcast(SendDisplayData Event)
+{
+	SwitchStepsReady = Event;
+}
+
+
+static void AutomataFuncs::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
+{
+	TArray<int> MemoryDummy;
+	NeighborsOf.Init(MemoryDummy, Neighborhoods.Num());
+
+	TSet<int> SetDummy;
+	TArray<TSet<int>> DupeGuard;
+	DupeGuard.Init(SetDummy, NeighborsOf.Num());
+
+	for (int i = 0; i < NeighborsOf.Num(); ++i)
+	{
+		for (int Neighbor : Neighborhoods[i])
+		{
+			DupeGuard[Neighbor].Add(i);
+		}
+	}
+
+	for (int i = 0; i < NeighborsOf.Num(); ++i)
+	{
+		NeighborsOf[i] = DupeGuard[i].Array();
+	}
+}
