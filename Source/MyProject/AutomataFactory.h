@@ -10,6 +10,7 @@ class UGridSpecs;
 class ULifelikeRule;
 class UAutomataDisplay;
 class UAutomataStepDriver;
+class IAutomata;
 
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
@@ -51,12 +52,15 @@ protected:
 
 
 	UGridSpecs* Grid = nullptr;
-	ULifelikeRule* Lifelike = nullptr;
+	IAutomata* Automata = nullptr;
 	UAutomataDisplay* Display = nullptr;
 	UAutomataStepDriver* Driver = nullptr;
 
 	TArray<TArray<int>> Neighborhoods;
 	TArray<FIntPoint> RelativeNeighborhood = RelativeMooreNeighborhood;
+
+	UPROPERTY(Blueprintable, EditAnywhere, meta = (MustImplement = "Automata"))
+		UClass* AutomataType;
 
 	UPROPERTY(Blueprintable, EditAnywhere)
 		int NumXCells UMETA(DisplayName = "# cells wide") = 100;
@@ -129,5 +133,5 @@ protected:
 
 public:
 	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	//virtual void Tick(float DeltaTime) override;
 };

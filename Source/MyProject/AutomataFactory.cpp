@@ -3,6 +3,7 @@
 #include "Rulesets.h"
 #include "AutomataDisplay.h"
 #include "AutomataStepDriver.h"
+#include "AutomataInterface.h"
 
 // Sets default values
 AAutomataFactory::AAutomataFactory()
@@ -15,8 +16,8 @@ AAutomataFactory::AAutomataFactory()
 void AAutomataFactory::BeginPlay()
 {
 	Super::BeginPlay();
-	Lifelike->BroadcastData();
-	Lifelike->StartNewStep();
+	Automata->BroadcastData();
+	Automata->StartNewStep();
 	Driver->SetTimer(StepPeriod);
 }
 
@@ -65,14 +66,17 @@ void AAutomataFactory::SetRelativeNeighborhood()
 
 void AAutomataFactory::RuleCalcSetup()
 {
-	Lifelike = NewObject<ULifelikeRule>(this);
+	Automata = Cast<IAutomata>(NewObject<UClass>(this, AutomataType));
 
-	Lifelike->SetNeighborhoods(Neighborhoods);
-	Lifelike->SetNeighborsOf(Neighborhoods);
-	Lifelike->InitializeCellRules(BirthString, SurviveString);
-	Lifelike->InitializeCellStates(Probability);
-
-	Lifelike->StartingDataSetup();
+	ULifelikeRule* Lifelike = Cast<ULifelikeRule>(Automata);
+	if (Lifelike != nullptr)
+	{
+		Lifelike->SetNeighborhoods(Neighborhoods);
+		Lifelike->SetNeighborsOf(Neighborhoods);
+		Lifelike->InitializeCellRules(BirthString, SurviveString);
+		Lifelike->InitializeCellStates(Probability);
+		Lifelike->StartingDataSetup();
+	}
 }
 
 void AAutomataFactory::DisplaySetup()
@@ -99,31 +103,14 @@ void AAutomataFactory::DisplaySetup()
 
 	Display->InitializeNiagaraSystem(ParticleSystem, RootComponent, Grid);
 
-	ULifelikeRule::SendDisplayData DisplayLink;
+	IAutomata::SendDisplayData DisplayLink;
 	DisplayLink.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);
-	Lifelike->SetBroadcast(DisplayLink);
+	Automata->SetBroadcast(DisplayLink);
 }
 
 void AAutomataFactory::DriverSetup()
 {
 	Driver = NewObject<UAutomataStepDriver>(this);
 
-	UAutomataStepDriver::DriverStepEvent WaitAndFinalize;
-	WaitAndFinalize.AddUObject(Lifelike, &ULifelikeRule::StepComplete);
-
-	UAutomataStepDriver::DriverStepEvent UpdateDisplay;
-	UpdateDisplay.AddUObject(Lifelike, &ULifelikeRule::BroadcastData);
-
-	UAutomataStepDriver::DriverStepEvent NewStep;
-	NewStep.AddUObject(Lifelike, &ULifelikeRule::StartNewStep);
-
-	Driver->SetEvents(WaitAndFinalize, UpdateDisplay, NewStep);
-}
-
-
-
-// Called every frame
-void AAutomataFactory::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
+	Driver->SetAutomata(Automata);
 }

@@ -8,13 +8,6 @@ void ULifelikeRule::StartingDataSetup()
 	SwitchStepBuffer.Init(-2, Neighborhoods.Num());
 }
 
-void ULifelikeRule::CellProcessorWork()
-{
-	ApplyCellRules();
-
-	//CalcStepSwitches();
-}
-
 void ULifelikeRule::InitializeCellStates(float Probability)
 {
 	int NumCells = Neighborhoods.Num();
@@ -149,7 +142,7 @@ void ULifelikeRule::BroadcastData()
 void ULifelikeRule::StartNewStep()
 {
 	// kick off calculation of next stage
-	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {CellProcessorWork();});
+	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {ApplyCellRules(); });
 
 }
 

@@ -1,10 +1,11 @@
 #pragma once
 
+#include "AutomataInterface.h"
 #include "Rulesets.generated.h"
 
 
 UCLASS()
-class ULifelikeRule : public UObject
+class ULifelikeRule : public UObject, public IAutomata
 {
 	GENERATED_BODY()
 
@@ -28,9 +29,6 @@ class ULifelikeRule : public UObject
 
 	TFuture<void> AsyncState;
 
-	void CellProcessorWork();
-
-	
 
 	void CalcStepSwitches();
 
@@ -43,7 +41,7 @@ class ULifelikeRule : public UObject
 
 	public:
 
-	DECLARE_EVENT_OneParam(ULifelikeRule, SendDisplayData, const TArray<float>&)
+	//DECLARE_EVENT_OneParam(ULifelikeRule, SendDisplayData, const TArray<float>&)
 
 	SendDisplayData SwitchStepsReady;
 
@@ -61,17 +59,11 @@ class ULifelikeRule : public UObject
 		NeighborsOf = NeighbsOf;
 	}
 
-	TSharedRef<TArray<float>> GetSwitchStepPtr()
-	{
-		TSharedPtr<TArray<float>> Temp = MakeShareable<TArray<float>>(&SwitchStepBuffer);
-		return Temp.ToSharedRef();
-	}
-
 	void SetBroadcast(SendDisplayData Event);
 
-	void StepComplete();
-	void BroadcastData();
-	void StartNewStep();
+	void StepComplete() override;
+	void BroadcastData() override;
+	void StartNewStep() override;
 
 
 };
