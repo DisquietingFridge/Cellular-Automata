@@ -20,13 +20,10 @@ enum class BoundGridRuleset : uint8
 	Sphere
 };
 
-
-UCLASS()
-class UGridSpecs : public UObject
+USTRUCT(Blueprintable)
+struct FBasicGrid
 {
 	GENERATED_BODY()
-
-private:
 
 	UPROPERTY(Blueprintable, EditAnywhere)
 		CellShape Shape = CellShape::Square;
@@ -37,6 +34,7 @@ private:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		int NumZCells = 100;
 
+	// Spacing that determines how far adjacent cells should be placed away from each other
 	UPROPERTY(Blueprintable, EditAnywhere)
 		float Offset = 1;
 
@@ -46,69 +44,31 @@ private:
 	void SetCoords();
 	void SetTransforms();
 
-public:
-
-	void SetAndInit(TTuple<int, int> Dims, float newOffset, CellShape newShape);
-
-	TTuple<int,int> GetGridDimensions()
-	{
-		return TTuple<int, int>(NumXCells, NumZCells);
-	}
-
-	void SetGridDimensions(TTuple<int, int> Dims)
-	{
-		Tie(NumXCells, NumZCells) = Dims;
-	}
-
-	CellShape GetCellShape()
-	{
-		return Shape;
-	}
-
-	void SetCellShape(CellShape newShape)
-	{
-		this->Shape = newShape;
-	}
-
 	int NumCells()
 	{
 		return NumXCells * NumZCells;
 	}
 
-	TArray<FIntPoint>* GetCoords()
+	int CoordToCellID(FIntPoint Coord) const
 	{
-		return &GridCoords;
+		return Coord[1] * NumXCells + Coord[0];
 	}
-
-	TArray<FVector>* GetTransforms()
-	{
-		return &CellTransforms;
-	}
-
 };
 
-UCLASS()
-class UNeighborhoodMaker : public UObject
+USTRUCT()
+struct FNeighborhoodMaker
 {
 	GENERATED_BODY()
 
-	DECLARE_DELEGATE_RetVal_OneParam(int, CoordConverter, FIntPoint&);
+		//DECLARE_DELEGATE_RetVal_OneParam(int, CoordConverter, FIntPoint&);
+		typedef int (FNeighborhoodMaker::* RulePtr)(FIntPoint&);
 
 private:
 
-	CoordConverter ApplyEdgeRule;
-
-	int NumXCells = 0;
-	int NumZCells = 0;
-
-	UGridSpecs* Grid = nullptr;
+	FBasicGrid* Grid = nullptr;
+	RulePtr ApplyEdgeRule = nullptr;
 
 	void MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords);
-
-	int CoordToCellID(FIntPoint Coord) const
-	{
-		return Coord[1] * NumXCells		+ Coord[0];
-	}
 
 	void ReverseAxis(int & Component, int NumAxisCells) const;
 
@@ -130,18 +90,14 @@ private:
 
 	void InitRuleFunc(BoundGridRuleset Rule);
 
-
-
 public:
 
-	void Initialize(UGridSpecs* GridSpecs)
+	FNeighborhoodMaker() {}
+
+	FNeighborhoodMaker(FBasicGrid* initGrid)
 	{
-		this->Grid = GridSpecs;
-		Tie(NumXCells, NumZCells) = Grid->GetGridDimensions();
+		Grid = initGrid;
 	}
 
-
 	void MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, TArray<FIntPoint> RelativeNeighborhood, BoundGridRuleset Rule);
-	//void MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods);
-
 };

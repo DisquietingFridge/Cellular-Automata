@@ -50,13 +50,13 @@ protected:
 
 	void GridSetup();
 
-	void SetRelativeNeighborhood();
+	TArray<FIntPoint> GetRelativeNeighborhood();
 	void RuleCalcSetup();
 	void DisplaySetup();
 	void DriverSetup();
 
-
-	UGridSpecs* Grid = nullptr;
+	UPROPERTY(Blueprintable, EditAnywhere)
+	FBasicGrid Grid;
 
 	UPROPERTY()
 	UObject* Automata = nullptr;
@@ -69,20 +69,8 @@ protected:
 	UPROPERTY()
 	UAutomataStepDriver* Driver = nullptr;
 
-	TArray<TArray<int>> Neighborhoods;
-	TArray<FIntPoint> RelativeNeighborhood = RelativeMooreNeighborhood;
-
 	UPROPERTY(Blueprintable, EditAnywhere, meta = (MustImplement = "Automata"))
 		UClass* AutomataType;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		int NumXCells UMETA(DisplayName = "# cells wide") = 100;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		int NumZCells UMETA(DisplayName = "# cells tall") = 100;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		CellShape Shape = CellShape::Square;
 
 	UPROPERTY(Blueprintable, EditAnywhere)
 		UNiagaraSystem* ParticleSystem = nullptr;
@@ -114,11 +102,6 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		FString SurviveString = TEXT("23");
 
-	// Spacing that determines how far adjacent clusters should be placed away from each other
-	// The square mesh used has a 200x200 unit area.
-	UPROPERTY(Blueprintable, EditAnywhere)
-		float Offset = 1;
-
 	// time per automata step in seconds
 	UPROPERTY(Blueprintable, EditAnywhere)
 		float StepPeriod = 0.01;
@@ -145,6 +128,4 @@ protected:
 		float StepsToFade = 1000;
 
 public:
-	// Called every frame
-	//virtual void Tick(float DeltaTime) override;
 };

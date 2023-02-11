@@ -3,7 +3,7 @@
 #include "AutomataDisplay.generated.h"
 
 
-class UGridSpecs;
+struct FBasicGrid;
 class UNiagaraSystem;
 class UNiagaraComponent;
 
@@ -24,7 +24,7 @@ class UAutomataDisplay : public UObject
 	public:
 
 	void InitMaterial(UMaterialInterface* Mat, TMap<FName, float> MatScalars, TMap<FName, FLinearColor> MatVectors);
-	void InitializeNiagaraSystem(UNiagaraSystem* System, USceneComponent* Root, UGridSpecs* Grid);
+	void InitializeNiagaraSystem(UNiagaraSystem* System, USceneComponent* Root,  const FBasicGrid& Grid);
 
 	void UpdateDisplay(const TArray<float> & SwitchSteps);
 

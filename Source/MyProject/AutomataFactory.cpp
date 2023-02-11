@@ -40,45 +40,44 @@ void AAutomataFactory::PostInitializeComponents()
 
 void AAutomataFactory::GridSetup()
 {
-	Grid = NewObject<UGridSpecs>(this);
-	Grid->SetAndInit(MakeTuple(NumXCells, NumZCells), Offset, Shape);
-
-	SetRelativeNeighborhood();
-
-	UNeighborhoodMaker* Maker = NewObject<UNeighborhoodMaker>(this);
-	Maker->Initialize(Grid);
-	Maker->MakeNeighborhoods(Neighborhoods, RelativeNeighborhood, SelectedGridRule);
+	Grid.SetCoords();
+	Grid.SetTransforms();
 }
 
-void AAutomataFactory::SetRelativeNeighborhood()
+TArray<FIntPoint> AAutomataFactory::GetRelativeNeighborhood()
 {
 	if (AutomataType == UAntRule::StaticClass())
 	{
-		RelativeNeighborhood = RelativeCardinalNeighborhood;
-		return;
+		return RelativeCardinalNeighborhood;
 	}
 
-	switch (Shape)
+	switch (Grid.Shape)
 	{
 	case CellShape::Square:
-		RelativeNeighborhood = RelativeMooreNeighborhood;
-		break;
+		return RelativeMooreNeighborhood;
 	case CellShape::Hex:
-		RelativeNeighborhood = RelativeAxialNeighborhood;
-		break;
+		return RelativeAxialNeighborhood;
 	default:
-		RelativeNeighborhood = RelativeMooreNeighborhood;
-		break;
+		return RelativeMooreNeighborhood;
 	}
 }
 
 void AAutomataFactory::RuleCalcSetup()
 {
-	Automata = NewObject<UObject>(GetWorld(), AutomataType);
+	if (AutomataType != nullptr)
+	{
+		Automata = NewObject<UObject>(GetWorld(), AutomataType);
+	}
+	else
+	{
+		return;
+	}
 
 	AutomataInterfacePtr = Cast<IAutomata>(Automata);
 	if (AutomataInterfacePtr != nullptr)
 	{
+		TArray<TArray<int>> Neighborhoods;
+		FNeighborhoodMaker(&Grid).MakeNeighborhoods(Neighborhoods, GetRelativeNeighborhood(), SelectedGridRule);
 		AutomataInterfacePtr->SetNeighborhoods(Neighborhoods);
 	}
 	
@@ -111,7 +110,7 @@ void AAutomataFactory::DisplaySetup()
 	ScalarMap.Add("PhaseExponent",PhaseExponent);
 	ScalarMap.Add("EmissiveMultiplier",EmissiveMultiplier);
 	ScalarMap.Add("FadePerSecond", 1 / (StepPeriod * StepsToFade));
-	ScalarMap.Add("IsHexagon" , float(Shape == CellShape::Hex));
+	ScalarMap.Add("IsHexagon" , float(Grid.Shape == CellShape::Hex));
 
 	Display->InitMaterial(Mat, ScalarMap, VecMap);
 
@@ -124,7 +123,6 @@ void AAutomataFactory::DisplaySetup()
 	{
 		AutomataInterfacePtr->SetBroadcast(DisplayLink);
 	}
-	
 }
 
 void AAutomataFactory::DriverSetup()
@@ -135,5 +133,4 @@ void AAutomataFactory::DriverSetup()
 	{
 		Driver->SetAutomata(AutomataInterfacePtr);
 	}
-	
 }

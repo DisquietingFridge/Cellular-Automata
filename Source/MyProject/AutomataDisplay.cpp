@@ -25,24 +25,17 @@ void UAutomataDisplay::InitMaterial(UMaterialInterface* Mat, TMap<FName, float> 
 }
 
 //TODO: Make this spawn at location, not attached to a root
-void UAutomataDisplay::InitializeNiagaraSystem(UNiagaraSystem* System, USceneComponent* Root, UGridSpecs* Grid)
+void UAutomataDisplay::InitializeNiagaraSystem(UNiagaraSystem* System, USceneComponent* Root, const FBasicGrid& Grid)
 {
 	ParticleSystem = System;
 	// TODO: Make sure this is paranted properly
 	NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ParticleSystem, Root, FName(), FVector(0), FRotator(0), EAttachLocation::KeepRelativeOffset, false, false, ENCPoolMethod::None, true);
 
-	auto& Transforms = *(Grid->GetTransforms());
-
-	NiagaraFuncs::SetNiagaraArrayVector(NiagaraComponent, "User.Transforms", Transforms);
+	NiagaraFuncs::SetNiagaraArrayVector(NiagaraComponent, "User.Transforms", Grid.CellTransforms);
 	NiagaraComponent->SetVariableMaterial(FName("User.Material"), DynMaterial);
 
-
-	int NumXCells;
-	int NumZCells;
-	Tie(NumXCells, NumZCells) = Grid->GetGridDimensions();
-
-	NiagaraComponent->SetVariableInt(FName("User.XCount"), NumXCells);
-	NiagaraComponent->SetVariableInt(FName("User.ZCount"), NumZCells);
+	NiagaraComponent->SetVariableInt(FName("User.XCount"), Grid.NumXCells);
+	NiagaraComponent->SetVariableInt(FName("User.ZCount"), Grid.NumZCells);
 
 	NiagaraComponent->ActivateSystem();
 }

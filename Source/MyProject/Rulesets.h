@@ -4,36 +4,48 @@
 #include "Rulesets.generated.h"
 
 
+// contains members common to virtually all automata
+USTRUCT()
+struct FBaseAutomataStruct
+{
+	GENERATED_BODY()
+
+	public:
+
+	// records what step the cells were switched to an "off" position,
+	// used to give fade-out effect for dead cells
+	// a future step denotes that the cell is on
+	TArray<float> SwitchStepBuffer;
+
+	// simulation step. 
+	//Used to record switches made during next state transition in SwitchStepBuffer
+	float NextStep = 0;
+
+	// describes each cell's neighbors
+	TArray<TArray<int>> Neighborhoods;
+
+	// state of each cell in the grid.
+	TArray<int> CurrentStates;
+
+};
+
 UCLASS()
 class ULifelikeRule : public UObject, public IAutomata
 {
 	GENERATED_BODY()
 
-
-	// records what step the cells were switched to an "off" position,
-	// used to give fade-out effect for dead cells
-	// a future time denotes that the cell is on
-	TArray<float> SwitchStepBuffer;
-
-	// simulation step. 
-	//Used to record switches made during next state transition in SwitchStepBuffer
-	float NextStep;
+	FBaseAutomataStruct BaseMembers;
 
 	//Set that stores the birth rules for the automata
 	TArray<bool> BirthRules;
 	//Set that stores the survival rules for the automata
 	TArray<bool> SurviveRules;
 
-	// states of the grid, whether a cell is alive
-	TArray<bool> CurrentStates;
-	TArray<bool> NextStates;
+	TArray<int> NextStates;
 
 	// Flags for each cell, describing whether they require evaluation
 	TArray<bool> EvalFlaggedThisStep;
 	TArray<bool> EvalFlaggedLastStep;
-
-	// describes each cell's neighbors
-	TArray<TArray<int>> Neighborhoods;
 
 	// for each cell, describes the cells that have it as a neighbor
 	// only different from Neighborhoods in asymmetric neighborhoods
@@ -51,6 +63,8 @@ class ULifelikeRule : public UObject, public IAutomata
 
 	int GetCellAliveNeighbors(int CellID) const;
 
+	// many arrays depend on the number of cells,
+	// which is described by the Neighborhood array
 	void PostNeighborhoodSetup();
 
 	SendDisplayData SwitchStepsReady;
@@ -60,17 +74,8 @@ class ULifelikeRule : public UObject, public IAutomata
 
 	void InitializeCellStates(float Probability);
 	void InitializeCellRules(FString BirthString, FString SurviveString);
-
-	// many arrays depend on the number of cells,
-	// which is described by the Neighborhood array
 	
-
 	void SetNeighborhoods(TArray<TArray<int>> Neighbs) override;
-
-	void SetNeighborsOf(TArray<TArray<int>> NeighbsOf)
-	{
-		NeighborsOf = NeighbsOf;
-	}
 
 	void SetBroadcast(SendDisplayData Event) override;
 
@@ -84,22 +89,7 @@ class UAntRule : public UObject, public IAutomata
 {
 	GENERATED_BODY()
 
-	// records what step the cells were switched to an "off" position,
-	// used to give fade-out effect for dead cells
-	// a future time denotes that the cell is on
-	TArray<float> SwitchStepBuffer;
-
-	// simulation step. 
-	//Used to record switches made during next state transition in SwitchStepBuffer
-	float NextStep;
-
-	// describes state of each cell, influences ant based on CellSequence
-	// Assumes that ants change cells in turn, not simultaneously
-	TArray<int> CurrentStates;
-
-	// describes each cell's neighbors
-	// these should be ordered in clockwise cardinal direction for consistent rotation behavior
-	TArray<TArray<int>> Neighborhoods;
+	FBaseAutomataStruct BaseMembers;
 
 	// Ruleset that determines the tile's effect on the ant, e.g. {right, left} would be {1, -1}, or {1,3}
 	TArray<int> CellSequence = { 1, -1 };

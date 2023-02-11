@@ -2,12 +2,9 @@
 
 void ULifelikeRule::PostNeighborhoodSetup()
 {
-	int NumCells = Neighborhoods.Num();
+	int NumCells = BaseMembers.Neighborhoods.Num();
 
-	//TODO: should this start at 1?
-	NextStep = 0;
-
-	SwitchStepBuffer.Init(-2, NumCells);
+	BaseMembers.SwitchStepBuffer.Init(TNumericLimits<int32>::Min(), NumCells);
 
 	NextStates.Init(false, NumCells);
 
@@ -17,21 +14,21 @@ void ULifelikeRule::PostNeighborhoodSetup()
 
 void ULifelikeRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
 {
-	Neighborhoods = Neighbs;
+	BaseMembers.Neighborhoods = Neighbs;
 
-	AutomataFuncs::MakeNeighborsOf(NeighborsOf, Neighborhoods);
+	AutomataFuncs::MakeNeighborsOf(NeighborsOf, BaseMembers.Neighborhoods);
 	PostNeighborhoodSetup();
 }
 
 void ULifelikeRule::InitializeCellStates(float Probability)
 {
-	int NumCells = Neighborhoods.Num();
+	int NumCells = BaseMembers.Neighborhoods.Num();
 
-	CurrentStates.Reserve(NumCells);
+	BaseMembers.CurrentStates.Reserve(NumCells);
 
 	for (int i = 0; i < NumCells; ++i)
 	{
-		CurrentStates.Add(FMath::FRandRange(0, TNumericLimits<int32>::Max() - 1) < Probability * TNumericLimits<int32>::Max());
+		BaseMembers.CurrentStates.Add(FMath::FRandRange(0, TNumericLimits<int32>::Max() - 1) < Probability * TNumericLimits<int32>::Max());
 	}
 }
 
@@ -61,20 +58,20 @@ void ULifelikeRule::InitializeCellRules(FString BirthString, FString SurviveStri
 
 void ULifelikeRule::CalcStepSwitches()
 {
-	ParallelFor(Neighborhoods.Num(), [&](int32 CellID)
+	ParallelFor(BaseMembers.Neighborhoods.Num(), [&](int32 CellID)
 	{
 		if (EvalFlaggedLastStep[CellID])// register change based on state
 		{
 			// register change based on state
 			if (NextStates[CellID])
 			{  // switch-off time is in the future, i.e. cell is still on
-				SwitchStepBuffer[CellID] = TNumericLimits<float>::Max();
+				BaseMembers.SwitchStepBuffer[CellID] = TNumericLimits<float>::Max();
 			}
 			else // is off at next time
 			{
-				if (CurrentStates[CellID])  // was previously on
+				if (BaseMembers.CurrentStates[CellID])  // was previously on
 				{ // register switch-off time as being upcoming step
-					SwitchStepBuffer[CellID] = NextStep;
+					BaseMembers.SwitchStepBuffer[CellID] = BaseMembers.NextStep;
 				}
 			}
 		}
@@ -83,16 +80,16 @@ void ULifelikeRule::CalcStepSwitches()
 
 void ULifelikeRule::ApplyCellRules()
 {
-	ParallelFor(Neighborhoods.Num(), [&](int32 CellID)
+	ParallelFor(BaseMembers.Neighborhoods.Num(), [&](int32 CellID)
 	{
 		if (EvalFlaggedLastStep[CellID])
 		{
 			int AliveNeighbors = GetCellAliveNeighbors(CellID);
 
-			NextStates[CellID] = CurrentStates[CellID] ? SurviveRules[AliveNeighbors] : BirthRules[AliveNeighbors];
+			NextStates[CellID] = BaseMembers.CurrentStates[CellID] ? int(SurviveRules[AliveNeighbors]) : int(BirthRules[AliveNeighbors]);
 
 			//there has been a change of state
-			if (NextStates[CellID] != CurrentStates[CellID])
+			if (NextStates[CellID] != BaseMembers.CurrentStates[CellID])
 			{
 				EvalFlaggedThisStep[CellID] = true;
 				for (int InfluencedCellID : NeighborsOf[CellID])
@@ -106,11 +103,11 @@ void ULifelikeRule::ApplyCellRules()
 
 void ULifelikeRule::TimestepPropertyShift()
 {
-	++NextStep;
+	++BaseMembers.NextStep;
 
-	ParallelFor(Neighborhoods.Num(), [&](int32 CellID)
+	ParallelFor(BaseMembers.Neighborhoods.Num(), [&](int32 CellID)
 	{
-		CurrentStates[CellID] = NextStates[CellID];
+		BaseMembers.CurrentStates[CellID] = NextStates[CellID];
 		EvalFlaggedLastStep[CellID] = EvalFlaggedThisStep[CellID];
 		EvalFlaggedThisStep[CellID] = false;
 
@@ -122,9 +119,9 @@ int ULifelikeRule::GetCellAliveNeighbors(int CellID) const
 	//Query the cell's neighborhood to sum its alive neighbors
 	int AliveNeighbors = 0;
 
-	for (int Neighbor : Neighborhoods[CellID])
+	for (int Neighbor : BaseMembers.Neighborhoods[CellID])
 	{
-		AliveNeighbors += CurrentStates[Neighbor];
+		AliveNeighbors += BaseMembers.CurrentStates[Neighbor];
 	}
 	return AliveNeighbors;
 }
@@ -145,7 +142,7 @@ void ULifelikeRule::StepComplete()
 
 void ULifelikeRule::BroadcastData()
 {
-	SwitchStepsReady.Broadcast(SwitchStepBuffer);
+	SwitchStepsReady.Broadcast(BaseMembers.SwitchStepBuffer);
 }
 
 void ULifelikeRule::StartNewStep()
@@ -165,32 +162,27 @@ void UAntRule::MoveAnts()
 
 		int& AntCell = AntPositions[Ant];
 		int& AntOrientation = AntOrientations[Ant];
-
-		TArray<int> AntNeighborhood = Neighborhoods[AntCell];
-		int NumNeighbs = AntNeighborhood.Num();
 		
-		int& HostState = CurrentStates[AntCell];
-		int OldHostState = HostState;
+		int& HostState = BaseMembers.CurrentStates[AntCell];
 
 		// change ant orientation
+		const TArray<int>& AntNeighborhood = BaseMembers.Neighborhoods[AntCell];
+		int NumNeighbs = AntNeighborhood.Num();
 		AntOrientation += CellSequence[HostState] + NumNeighbs;
 		AntOrientation %= NumNeighbs;
 
 		// change host cell state
+		int OldHostState = HostState;
 		HostState += 1;
 		HostState %= NumStates;
 
 		//update display data
 		if (HostState != OldHostState)
 		{
-			if (HostState == 1)
-			{
-				SwitchStepBuffer[AntCell] = TNumericLimits<float>::Max();
-			}
-			else
-			{
-				SwitchStepBuffer[AntCell] = NextStep;
-			}
+			BaseMembers.SwitchStepBuffer[AntCell] = 
+				(HostState == 1) ? 
+				TNumericLimits<float>::Max() : 
+				BaseMembers.NextStep;
 		}
 
 		// move ant along
@@ -200,13 +192,11 @@ void UAntRule::MoveAnts()
 
 void UAntRule::PostNeighborhoodSetup()
 {
-	int NumCells = Neighborhoods.Num();
+	int NumCells = BaseMembers.Neighborhoods.Num();
 
-	NextStep = 0;
+	BaseMembers.SwitchStepBuffer.Init(TNumericLimits<int32>::Min(), NumCells);
 
-	SwitchStepBuffer.Init(-2, NumCells);
-
-	CurrentStates.Init(0, NumCells);
+	BaseMembers.CurrentStates.Init(0, NumCells);
 }
 
 void UAntRule::InitializeAnts(int NumAnts)
@@ -215,19 +205,19 @@ void UAntRule::InitializeAnts(int NumAnts)
 
 void UAntRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
 {
-	Neighborhoods = Neighbs;
+	BaseMembers.Neighborhoods = Neighbs;
 	PostNeighborhoodSetup();
 }
 
 void UAntRule::StepComplete()
 {
 	AsyncState.Wait();
-	NextStep++;
+	BaseMembers.NextStep++;
 }
 
 void UAntRule::BroadcastData()
 {
-	SwitchStepsReady.Broadcast(SwitchStepBuffer);
+	SwitchStepsReady.Broadcast(BaseMembers.SwitchStepBuffer);
 }
 
 void UAntRule::StartNewStep()

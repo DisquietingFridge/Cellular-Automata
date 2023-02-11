@@ -2,7 +2,7 @@
 #include "HexCoords.h"
 
 
-void UGridSpecs::SetCoords()
+void FBasicGrid::SetCoords()
 {
 	GridCoords.Init(FIntPoint(), NumCells());
 	ParallelFor(NumZCells, [&](int z)
@@ -15,7 +15,7 @@ void UGridSpecs::SetCoords()
 	});
 }
 
-void UGridSpecs::SetTransforms()
+void FBasicGrid::SetTransforms()
 {
 	using namespace HexCoords;
 	CellTransforms.Reserve(NumCells());
@@ -42,63 +42,51 @@ void UGridSpecs::SetTransforms()
 	}
 }
 
-void UGridSpecs::SetAndInit(TTuple<int, int> Dims, float newOffset, CellShape newShape)
-{
-	Shape = newShape;
-	Offset = newOffset;
-	Tie(NumXCells, NumZCells) = Dims;
-
-	SetCoords();
-	SetTransforms();
-}
-
-
-void UNeighborhoodMaker::InitRuleFunc(BoundGridRuleset Rule)
+void FNeighborhoodMaker::InitRuleFunc(BoundGridRuleset Rule)
 {
 	//TODO: Bind remaining rules.
 	switch (Rule)
 	{
 	case BoundGridRuleset::Torus:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::TorusRule;
 		break;
 
 	case BoundGridRuleset::Finite:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::FiniteRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::FiniteRule;
 		break;
 
 	case BoundGridRuleset::Cylinder:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::CylinderRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::CylinderRule;
 		break;
 
 	case BoundGridRuleset::Klein:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::KleinRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::KleinRule;
 		break;
 
 	case BoundGridRuleset::CrossSurface:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::CrossSurfaceRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::CrossSurfaceRule;
 		break;
 
 	case BoundGridRuleset::Sphere:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::SphereRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::SphereRule;
 		break;
 
-	
 	default:
-		ApplyEdgeRule.BindUObject(this, &UNeighborhoodMaker::TorusRule);
+		ApplyEdgeRule = &FNeighborhoodMaker::TorusRule;
 		break;
 	}
 }
 
 
 //TODO: Currently this implementation (adding to a set) does not allow for duplicate entries in the neighborhood. Desirable?
-void UNeighborhoodMaker::MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords)
+void FNeighborhoodMaker::MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntPoint>& NeighborCoords)
 {
 	TSet<int> ConvertedCoords;
 	for (auto Coord : NeighborCoords)
 	{
-		if (ApplyEdgeRule.IsBound())
+		if (ApplyEdgeRule != nullptr)
 		{
-			ConvertedCoords.Add(ApplyEdgeRule.Execute(Coord));
+			ConvertedCoords.Add((this->*ApplyEdgeRule)(Coord));
 		}	
 	}
 	ConvertedCoords.Remove(-1);
@@ -106,28 +94,30 @@ void UNeighborhoodMaker::MapNeighborhood(TArray<int>& Neighborhood, TArray<FIntP
 	Neighborhood = ConvertedCoords.Array();
 }
 
-void UNeighborhoodMaker::ReverseAxis(int & Component, int NumAxisCells) const
+void FNeighborhoodMaker::ReverseAxis(int & Component, int NumAxisCells) const
 {
 	LoopAxis(Component, NumAxisCells);
 	Component = NumAxisCells - Component - 1;
 }
 
-void UNeighborhoodMaker::LoopAxis(int & Component, int NumAxisCells) const
+void FNeighborhoodMaker::LoopAxis(int & Component, int NumAxisCells) const
 {
 	Component = Component >= 0 ? 
 				Component % NumAxisCells : 
 				NumAxisCells - ((abs(Component) - 1) % (NumAxisCells)) - 1;
 }
 
-bool UNeighborhoodMaker::IsAxisTwisted(int & Component, int NumAxisCells) const
+bool FNeighborhoodMaker::IsAxisTwisted(int & Component, int NumAxisCells) const
 {
 	return	Component < 0 ? 
 			! bool(		((abs(Component) - 1) / NumAxisCells) % 2) : 
 			bool(		(Component / NumAxisCells) % 2);
 }
 
-int UNeighborhoodMaker::TorusRule(FIntPoint& Coord)
+int FNeighborhoodMaker::TorusRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
 
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
@@ -135,17 +125,20 @@ int UNeighborhoodMaker::TorusRule(FIntPoint& Coord)
 	LoopAxis(XCoord, NumXCells);
 	LoopAxis(ZCoord, NumZCells);
 
-	return CoordToCellID(Coord);
+	return Grid->CoordToCellID(Coord);
 }
 
-int UNeighborhoodMaker::FiniteRule(FIntPoint& Coord)
+int FNeighborhoodMaker::FiniteRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
+
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
 
 	if (((XCoord >= 0) && (XCoord < NumXCells)) && ((ZCoord >= 0) && (ZCoord < NumZCells)))
 	{
-		return CoordToCellID(Coord);
+		return Grid->CoordToCellID(Coord);
 	}
 	else
 	{
@@ -153,15 +146,18 @@ int UNeighborhoodMaker::FiniteRule(FIntPoint& Coord)
 	}
 }
 
-int UNeighborhoodMaker::CylinderRule(FIntPoint& Coord)
+int FNeighborhoodMaker::CylinderRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
+
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
 
 	if ((ZCoord >= 0) && (ZCoord < NumZCells))
 	{
 		LoopAxis(XCoord, NumXCells);
-		return CoordToCellID(Coord);
+		return Grid->CoordToCellID(Coord);
 	}
 	else
 	{
@@ -169,8 +165,11 @@ int UNeighborhoodMaker::CylinderRule(FIntPoint& Coord)
 	}
 }
 
-int UNeighborhoodMaker::KleinRule(FIntPoint& Coord)
+int FNeighborhoodMaker::KleinRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
+
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
 
@@ -185,11 +184,14 @@ int UNeighborhoodMaker::KleinRule(FIntPoint& Coord)
 
 	LoopAxis(ZCoord, NumZCells);
 
-	return CoordToCellID(Coord);
+	return Grid->CoordToCellID(Coord);
 }
 
-int UNeighborhoodMaker::CrossSurfaceRule(FIntPoint& Coord)
+int FNeighborhoodMaker::CrossSurfaceRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
+
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
 
@@ -211,13 +213,16 @@ int UNeighborhoodMaker::CrossSurfaceRule(FIntPoint& Coord)
 		LoopAxis(XCoord, NumXCells);
 	}
 
-	return CoordToCellID(Coord);
+	return Grid->CoordToCellID(Coord);
 
 
 }
 
-int UNeighborhoodMaker::SphereRule(FIntPoint& Coord)
+int FNeighborhoodMaker::SphereRule(FIntPoint& Coord)
 {
+	int& NumXCells = Grid->NumXCells;
+	int& NumZCells = Grid->NumZCells;
+
 	int& XCoord = Coord[0];
 	int& ZCoord = Coord[1];
 
@@ -275,21 +280,19 @@ int UNeighborhoodMaker::SphereRule(FIntPoint& Coord)
 		// Z axis becomes -Z axis
 	}
 
-	return CoordToCellID(Coord);
+	return Grid->CoordToCellID(Coord);
 }
 
-void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, TArray<FIntPoint> RelativeNeighborhood, BoundGridRuleset Rule)
+void FNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, TArray<FIntPoint> RelativeNeighborhood, BoundGridRuleset Rule)
 {
 	using namespace HexCoords;
 
 	InitRuleFunc(Rule);
 
-	auto Shape = Grid->GetCellShape();
-	TArray<FIntPoint>& GridCoords = *(Grid->GetCoords());
+	TArray<FIntPoint>& GridCoords = Grid->GridCoords;
 
 	// Making sure to reserve all the memory we'll need, for parallelism thread-safety
 
-	//TODO: It's quite likely memory reservation does not work this way. Fix if needed (ditching parallelism as last resort)
 	Neighborhoods.Init(TArray<int>(), GridCoords.Num());
 
 	ParallelFor(GridCoords.Num(), [&](int CellID)
@@ -297,7 +300,7 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 		TArray<FIntPoint> NeighborCoords = RelativeNeighborhood;
 		FIntPoint& CellCoord = GridCoords[CellID];
 
-		switch (Shape)
+		switch (Grid->Shape)
 		{
 		case (CellShape::Square):
 			
@@ -324,27 +327,3 @@ void UNeighborhoodMaker::MakeNeighborhoods(TArray<TArray<int>>& Neighborhoods, T
 		MapNeighborhood(Neighborhoods[CellID],NeighborCoords);
 	}/*,EParallelForFlags::ForceSingleThread*/);
 }
-
-//void UNeighborhoodMaker::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods)
-//{
-//	TArray<int> MemoryDummy;
-//	NeighborsOf.Init(MemoryDummy, Neighborhoods.Num());
-//
-//	TSet<int> SetDummy;
-//	TArray<TSet<int>> DupeGuard;
-//	DupeGuard.Init(SetDummy, NeighborsOf.Num());
-//
-//	for (int i = 0; i < NeighborsOf.Num(); ++i)
-//	{
-//		for (int Neighbor : Neighborhoods[i])
-//		{
-//			DupeGuard[Neighbor].Add(i);
-//		}
-//	}
-//
-//	for (int i = 0; i < NeighborsOf.Num(); ++i)
-//	{
-//		NeighborsOf[i] = DupeGuard[i].Array();
-//	}
-//
-//}
