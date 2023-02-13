@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "GridRules.h"
+#include "AutomataDisplay.h"
 #include "AutomataFactory.generated.h"
 
 class UNiagaraSystem;
@@ -11,6 +12,7 @@ class ULifelikeRule;
 class UAutomataDisplay;
 class UAutomataStepDriver;
 class IAutomata;
+struct FDisplayMembers;
 
 const TArray<FIntPoint> RelativeMooreNeighborhood
 {
@@ -55,8 +57,17 @@ protected:
 	void DisplaySetup();
 	void DriverSetup();
 
+	UPROPERTY(Blueprintable, EditAnywhere, meta = (MustImplement = "Automata"))
+	UClass* AutomataType;
+
+	UPROPERTY(Blueprintable, EditAnywhere)
+	TSubclassOf<UAutomataDisplay> DisplayType;
+
 	UPROPERTY(Blueprintable, EditAnywhere)
 	FBasicGrid Grid;
+
+	UPROPERTY(Blueprintable, EditAnywhere)
+		FDisplayMembers DisplayParameters;
 
 	UPROPERTY()
 	UObject* Automata = nullptr;
@@ -68,21 +79,6 @@ protected:
 
 	UPROPERTY()
 	UAutomataStepDriver* Driver = nullptr;
-
-	UPROPERTY(Blueprintable, EditAnywhere, meta = (MustImplement = "Automata"))
-		UClass* AutomataType;
-
-	UPROPERTY(Blueprintable, EditAnywhere)
-		UNiagaraSystem* ParticleSystem = nullptr;
-
-	// Mesh that will be instanced to form the grid- typically a simple square
-	UPROPERTY(Blueprintable, EditAnywhere)
-		UStaticMesh* Mesh;
-
-	// Material that will be instanced and applied to the mesh.
-	// This needs to be specifically made for automata in order for it to display anything interesting
-	UPROPERTY(Blueprintable, EditAnywhere)
-		UMaterialInterface* Mat;
 
 	UPROPERTY(Blueprintable, EditAnywhere)
 		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Finite;
@@ -102,30 +98,13 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		FString SurviveString = TEXT("23");
 
-	// time per automata step in seconds
-	UPROPERTY(Blueprintable, EditAnywhere)
-		float StepPeriod = 0.01;
+	
 
-	// Exponent that drives how quickly a switched-off cell fades into the off state
-	// An exponent of 1 will fade linearly over the transition period. A higher exponent will fade out quicker initially, and a lower exponent will fade out slower initially.
-	UPROPERTY(Blueprintable, EditAnywhere)
-		float PhaseExponent = 201;
 
-	// "On" state cell color
-	UPROPERTY(Blueprintable, EditAnywhere)
-		FLinearColor OnColor = FLinearColor(0.6, 0, 0.6, 1);
 
-	// "Off" state cell color
-	UPROPERTY(Blueprintable, EditAnywhere)
-		FLinearColor OffColor = FLinearColor(0.0, 0, 0.0, 1);
+	
 
-	// Material property used to control emissive value
-	UPROPERTY(Blueprintable, EditAnywhere)
-		float EmissiveMultiplier = 20;
 
-	// how many automata steps a dead cell takes to fade out after death
-	UPROPERTY(Blueprintable, EditAnywhere)
-		float StepsToFade = 1000;
 
 public:
 };

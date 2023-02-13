@@ -19,7 +19,7 @@ void AAutomataFactory::BeginPlay()
 
 	AutomataInterfacePtr->BroadcastData();
 	AutomataInterfacePtr->StartNewStep();
-	Driver->SetTimer(StepPeriod);
+	Driver->SetTimer(DisplayParameters.StepPeriod);
 }
 
 void AAutomataFactory::PreInitializeComponents()
@@ -94,27 +94,10 @@ void AAutomataFactory::RuleCalcSetup()
 
 void AAutomataFactory::DisplaySetup()
 {
-	if (ParticleSystem == nullptr)
-	{
-		return;
-	}
 
-	Display = NewObject<UAutomataDisplay>(GetWorld());
+	Display = NewObject<UAutomataDisplay>( GetWorld(), DisplayType);
 
-	TMap<FName, FLinearColor> VecMap;
-	VecMap.Add("OnColor",OnColor);
-	VecMap.Add("OffColor", OffColor);
-
-	TMap<FName, float> ScalarMap;
-	ScalarMap.Add("StepPeriod", StepPeriod);
-	ScalarMap.Add("PhaseExponent",PhaseExponent);
-	ScalarMap.Add("EmissiveMultiplier",EmissiveMultiplier);
-	ScalarMap.Add("FadePerSecond", 1 / (StepPeriod * StepsToFade));
-	ScalarMap.Add("IsHexagon" , float(Grid.Shape == CellShape::Hex));
-
-	Display->InitMaterial(Mat, ScalarMap, VecMap);
-
-	Display->InitializeNiagaraSystem(ParticleSystem, RootComponent, Grid);
+	Display->InitializeNiagaraSystem(RootComponent,DisplayParameters, Grid);
 
 	IAutomata::SendDisplayData DisplayLink;
 	DisplayLink.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);

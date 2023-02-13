@@ -9,43 +9,47 @@
 
 typedef UNiagaraDataInterfaceArrayFunctionLibrary NiagaraFuncs;
 
-void UAutomataDisplay::InitMaterial(UMaterialInterface* Mat, TMap<FName, float> MatScalars, TMap<FName, FLinearColor> MatVectors)
+UMaterialInstanceDynamic* UAutomataDisplay::MakeMaterial(FDisplayMembers& DisplayParams, const FBasicGrid& Grid)
 {
-	DynMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+	UMaterialInstanceDynamic* DynMaterial = UMaterialInstanceDynamic::Create(Mat, this);
 
-	for (const auto& NameScalar : MatScalars)
+	DynMaterial->SetVectorParameterValue("OnColor", DisplayParams.OnColor);
+	DynMaterial->SetScalarParameterValue("IsHexagon", float(Grid.Shape == CellShape::Hex));
+	for (const auto& NameVec : DisplayParams.MatFloats())
 	{
-		DynMaterial->SetScalarParameterValue(NameScalar.Key, NameScalar.Value);
+		DynMaterial->SetScalarParameterValue(NameVec.Key, NameVec.Value);
 	}
 
-	for (const auto& NameVec : MatVectors)
-	{
-		DynMaterial->SetVectorParameterValue(NameVec.Key, NameVec.Value);
-	}
+	return DynMaterial;	
 }
 
 //TODO: Make this spawn at location, not attached to a root
-void UAutomataDisplay::InitializeNiagaraSystem(UNiagaraSystem* System, USceneComponent* Root, const FBasicGrid& Grid)
+void UAutomataDisplay::InitializeNiagaraSystem(USceneComponent* Root, FDisplayMembers& DisplayParams, const FBasicGrid& Grid)
 {
-	ParticleSystem = System;
-	// TODO: Make sure this is paranted properly
+	
+	// TODO: Make sure this is parented properly
 	NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ParticleSystem, Root, FName(), FVector(0), FRotator(0), EAttachLocation::KeepRelativeOffset, false, false, ENCPoolMethod::None, true);
 
 	NiagaraFuncs::SetNiagaraArrayVector(NiagaraComponent, "User.Transforms", Grid.CellTransforms);
-	NiagaraComponent->SetVariableMaterial(FName("User.Material"), DynMaterial);
-
-	NiagaraComponent->SetVariableInt(FName("User.XCount"), Grid.NumXCells);
-	NiagaraComponent->SetVariableInt(FName("User.ZCount"), Grid.NumZCells);
+	NiagaraFuncs::SetNiagaraArrayColor(NiagaraComponent, "User.State Colors", DisplayParams.OtherColors);
+	NiagaraComponent->SetVariableMaterial(FName("User.Material"), MakeMaterial(DisplayParams,Grid));
 
 	NiagaraComponent->ActivateSystem();
 }
 
 void UAutomataDisplay::UpdateDisplay(const TArray<float>& SwitchSteps)
 {
-	//TODO: Make sure material / Niagara system accepts SwitchSteps instead of time-domain "SwitchTimes"
-	//TArray<float>& Dereffed = ;
-
 	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchSteps", SwitchSteps);
+}
 
-	
+TMap<FName, float> FDisplayMembers::MatFloats()
+{
+	TMap<FName, float> FloatMap;
+
+	FloatMap.Add("StepPeriod", StepPeriod);
+	FloatMap.Add("PhaseExponent", PhaseExponent);
+	FloatMap.Add("EmissiveMultiplier", EmissiveMultiplier);
+	FloatMap.Add("FadePerSecond", 1 / (StepPeriod * StepsToFade));
+
+	return FloatMap;
 }
