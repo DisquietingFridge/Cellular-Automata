@@ -37,7 +37,7 @@ void UAutomataDisplay::InitializeNiagaraSystem(USceneComponent* Root, FDisplayMe
 	NiagaraComponent->ActivateSystem();
 }
 
-void UAutomataDisplay::UpdateDisplay(const TArray<float>& SwitchSteps)
+void UAutomataDisplay::UpdateSwitchTimes(const TArray<float>& SwitchSteps)
 {
 	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchSteps", SwitchSteps);
 }

@@ -67,5 +67,5 @@ class UAutomataDisplay : public UObject
 	
 	void InitializeNiagaraSystem(USceneComponent* Root, FDisplayMembers& DisplayParams, const FBasicGrid& Grid);
 
-	void UpdateDisplay(const TArray<float> & SwitchSteps);
+	void UpdateSwitchTimes(const TArray<float> & SwitchSteps);
 };

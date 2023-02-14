@@ -1,10 +1,11 @@
 #include "Rulesets.h"
+#include "AutomataDisplay.h"
 
 void ULifelikeRule::PostNeighborhoodSetup()
 {
-	int NumCells = BaseMembers.Neighborhoods.Num();
+	AutomataFuncs::MakeNeighborsOf(NeighborsOf, BaseMembers.Neighborhoods);
 
-	BaseMembers.SwitchStepBuffer.Init(TNumericLimits<int32>::Min(), NumCells);
+	int NumCells = BaseMembers.Neighborhoods.Num();
 
 	NextStates.Init(false, NumCells);
 
@@ -12,23 +13,11 @@ void ULifelikeRule::PostNeighborhoodSetup()
 	EvalFlaggedLastStep.Init(true, NumCells);
 }
 
-void ULifelikeRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
-{
-	BaseMembers.Neighborhoods = Neighbs;
-
-	AutomataFuncs::MakeNeighborsOf(NeighborsOf, BaseMembers.Neighborhoods);
-	PostNeighborhoodSetup();
-}
-
 void ULifelikeRule::InitializeCellStates(float Probability)
 {
-	int NumCells = BaseMembers.Neighborhoods.Num();
-
-	BaseMembers.CurrentStates.Reserve(NumCells);
-
-	for (int i = 0; i < NumCells; ++i)
+	for (int& State : BaseMembers.CurrentStates)
 	{
-		BaseMembers.CurrentStates.Add(FMath::FRandRange(0, TNumericLimits<int32>::Max() - 1) < Probability * TNumericLimits<int32>::Max());
+		State = FMath::FRandRange(0, TNumericLimits<int32>::Max() - 1) < Probability* TNumericLimits<int32>::Max();
 	}
 }
 
@@ -54,6 +43,12 @@ void ULifelikeRule::InitializeCellRules(FString BirthString, FString SurviveStri
 			SurviveRules[index] = true;
 		}
 	}
+}
+
+void ULifelikeRule::SetBaseMembers(FBaseAutomataStruct NewBaseMembers)
+{
+	BaseMembers = NewBaseMembers;
+	PostNeighborhoodSetup();
 }
 
 void ULifelikeRule::CalcStepSwitches()
@@ -126,11 +121,6 @@ int ULifelikeRule::GetCellAliveNeighbors(int CellID) const
 	return AliveNeighbors;
 }
 
-void ULifelikeRule::SetBroadcast(SendDisplayData Event)
-{
-	SwitchStepsReady = Event;
-}
-
 void ULifelikeRule::StepComplete()
 {
 	AsyncState.Wait();
@@ -142,7 +132,7 @@ void ULifelikeRule::StepComplete()
 
 void ULifelikeRule::BroadcastData()
 {
-	SwitchStepsReady.Broadcast(BaseMembers.SwitchStepBuffer);
+	BaseMembers.Display->UpdateSwitchTimes(BaseMembers.SwitchStepBuffer);
 }
 
 void ULifelikeRule::StartNewStep()
@@ -190,23 +180,13 @@ void UAntRule::MoveAnts()
 	}
 }
 
-void UAntRule::PostNeighborhoodSetup()
+void UAntRule::SetBaseMembers(FBaseAutomataStruct NewBaseMembers)
 {
-	int NumCells = BaseMembers.Neighborhoods.Num();
-
-	BaseMembers.SwitchStepBuffer.Init(TNumericLimits<int32>::Min(), NumCells);
-
-	BaseMembers.CurrentStates.Init(0, NumCells);
+	BaseMembers = NewBaseMembers;
 }
 
 void UAntRule::InitializeAnts(int NumAnts)
 {
-}
-
-void UAntRule::SetNeighborhoods(TArray<TArray<int>> Neighbs)
-{
-	BaseMembers.Neighborhoods = Neighbs;
-	PostNeighborhoodSetup();
 }
 
 void UAntRule::StepComplete()
@@ -217,18 +197,13 @@ void UAntRule::StepComplete()
 
 void UAntRule::BroadcastData()
 {
-	SwitchStepsReady.Broadcast(BaseMembers.SwitchStepBuffer);
+	BaseMembers.Display->UpdateSwitchTimes(BaseMembers.SwitchStepBuffer);
 }
 
 void UAntRule::StartNewStep()
 {
 	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {MoveAnts(); });
 	//MoveAnts();
-}
-
-void UAntRule::SetBroadcast(SendDisplayData Event)
-{
-	SwitchStepsReady = Event;
 }
 
 

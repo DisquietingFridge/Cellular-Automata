@@ -33,8 +33,8 @@ void AAutomataFactory::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	GridSetup();
-	RuleCalcSetup();
 	DisplaySetup();
+	RuleCalcSetup();
 	DriverSetup();
 }
 
@@ -78,7 +78,8 @@ void AAutomataFactory::RuleCalcSetup()
 	{
 		TArray<TArray<int>> Neighborhoods;
 		FNeighborhoodMaker(&Grid).MakeNeighborhoods(Neighborhoods, GetRelativeNeighborhood(), SelectedGridRule);
-		AutomataInterfacePtr->SetNeighborhoods(Neighborhoods);
+
+		AutomataInterfacePtr->SetBaseMembers({Neighborhoods, Display});
 	}
 	
 
@@ -98,14 +99,6 @@ void AAutomataFactory::DisplaySetup()
 	Display = NewObject<UAutomataDisplay>( GetWorld(), DisplayType);
 
 	Display->InitializeNiagaraSystem(RootComponent,DisplayParameters, Grid);
-
-	IAutomata::SendDisplayData DisplayLink;
-	DisplayLink.AddUObject(Display, &UAutomataDisplay::UpdateDisplay);
-
-	if (AutomataInterfacePtr != nullptr)
-	{
-		AutomataInterfacePtr->SetBroadcast(DisplayLink);
-	}
 }
 
 void AAutomataFactory::DriverSetup()

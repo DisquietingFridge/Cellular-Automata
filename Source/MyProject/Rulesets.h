@@ -4,30 +4,6 @@
 #include "Rulesets.generated.h"
 
 
-// contains members common to virtually all automata
-USTRUCT()
-struct FBaseAutomataStruct
-{
-	GENERATED_BODY()
-
-	public:
-
-	// records what step the cells were switched to an "off" position,
-	// used to give fade-out effect for dead cells
-	// a future step denotes that the cell is on
-	TArray<float> SwitchStepBuffer;
-
-	// simulation step. 
-	//Used to record switches made during next state transition in SwitchStepBuffer
-	float NextStep = 0;
-
-	// describes each cell's neighbors
-	TArray<TArray<int>> Neighborhoods;
-
-	// state of each cell in the grid.
-	TArray<int> CurrentStates;
-
-};
 
 UCLASS()
 class ULifelikeRule : public UObject, public IAutomata
@@ -67,17 +43,13 @@ class ULifelikeRule : public UObject, public IAutomata
 	// which is described by the Neighborhood array
 	void PostNeighborhoodSetup();
 
-	SendDisplayData SwitchStepsReady;
-
-
 	public:
 
 	void InitializeCellStates(float Probability);
 	void InitializeCellRules(FString BirthString, FString SurviveString);
 	
-	void SetNeighborhoods(TArray<TArray<int>> Neighbs) override;
+	void SetBaseMembers(FBaseAutomataStruct NewBaseMembers) override;
 
-	void SetBroadcast(SendDisplayData Event) override;
 
 	void StepComplete() override;
 	void BroadcastData() override;
@@ -103,23 +75,17 @@ class UAntRule : public UObject, public IAutomata
 	// responsible for calculating the next step asynchronously
 	TFuture<void> AsyncState;
 
-	SendDisplayData SwitchStepsReady;
-
 	void MoveAnts();
-
-	void PostNeighborhoodSetup();
 
 public:
 
-	void SetNeighborhoods(TArray<TArray<int>> Neighbs) override;
+	void SetBaseMembers(FBaseAutomataStruct NewBaseMembers) override;
 
 	void InitializeAnts(int NumAnts);
 
 	void StepComplete() override;
 	void BroadcastData() override;
 	void StartNewStep() override;
-
-	void SetBroadcast(SendDisplayData Event) override;
 
 };
 
