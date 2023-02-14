@@ -50,7 +50,6 @@ class ULifelikeRule : public UObject, public IAutomata
 	
 	void SetBaseMembers(FBaseAutomataStruct NewBaseMembers) override;
 
-
 	void StepComplete() override;
 	void BroadcastData() override;
 	void StartNewStep() override;

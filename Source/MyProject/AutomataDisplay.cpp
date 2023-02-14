@@ -42,6 +42,11 @@ void UAutomataDisplay::UpdateSwitchTimes(const TArray<float>& SwitchSteps)
 	NiagaraFuncs::SetNiagaraArrayFloat(NiagaraComponent, "User.SwitchSteps", SwitchSteps);
 }
 
+void UAutomataDisplay::UpdateEndFadeState(const TArray<int>& EndFadeStates)
+{
+	NiagaraFuncs::SetNiagaraArrayInt32(NiagaraComponent, "User.End States", EndFadeStates);
+}
+
 TMap<FName, float> FDisplayMembers::MatFloats()
 {
 	TMap<FName, float> FloatMap;
