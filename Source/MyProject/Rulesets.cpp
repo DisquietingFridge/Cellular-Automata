@@ -168,14 +168,6 @@ void UAntRule::MoveAnts()
 
 
 		BaseMembers.SwitchStepBuffer[AntCell] = BaseMembers.NextStep;
-		//update display data
-		/*if (HostState != OldHostState)
-		{
-			BaseMembers.SwitchStepBuffer[AntCell] = 
-				(HostState == 1) ? 
-				TNumericLimits<float>::Max() : 
-				BaseMembers.NextStep;
-		}*/
 
 		// move ant along
 		AntCell = AntNeighborhood[AntOrientation];
