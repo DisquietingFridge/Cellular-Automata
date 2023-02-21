@@ -90,4 +90,6 @@ public:
 
 namespace AutomataFuncs {
 	static void MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TArray<TArray<int>>& Neighborhoods);
+
+	static TArray<bool> StringToRule(FString RuleDigits);
 }

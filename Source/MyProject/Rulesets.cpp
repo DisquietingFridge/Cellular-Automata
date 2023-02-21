@@ -23,26 +23,8 @@ void ULifelikeRule::InitializeCellStates(float Probability)
 
 void ULifelikeRule::InitializeCellRules(FString BirthString, FString SurviveString)
 {
-	BirthRules.Init(false, 10);
-	SurviveRules.Init(false, 10);
-
-	for (TCHAR character : BirthString)
-	{
-		if (TChar<TCHAR>::IsDigit(character))
-		{
-			int32 index = TChar<TCHAR>::ConvertCharDigitToInt(character);
-			BirthRules[index] = true;
-		}
-	}
-
-	for (TCHAR character : SurviveString)
-	{
-		if (TChar<TCHAR>::IsDigit(character))
-		{
-			int32 index = TChar<TCHAR>::ConvertCharDigitToInt(character);
-			SurviveRules[index] = true;
-		}
-	}
+	BirthRules = AutomataFuncs::StringToRule(BirthString);
+	SurviveRules = AutomataFuncs::StringToRule(SurviveString);
 }
 
 void ULifelikeRule::SetBaseMembers(FBaseAutomataStruct NewBaseMembers)
@@ -223,4 +205,20 @@ static void AutomataFuncs::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TAr
 	{
 		NeighborsOf[i] = DupeGuard[i].Array();
 	}
+}
+
+TArray<bool> AutomataFuncs::StringToRule(FString RuleDigits)
+{
+	TArray<bool> Rule(false, 10);
+
+	for (TCHAR character : RuleDigits)
+	{
+		if (TChar<TCHAR>::IsDigit(character))
+		{
+			int32 index = TChar<TCHAR>::ConvertCharDigitToInt(character);
+			Rule[index] = true;
+		}
+	}
+
+	return Rule;
 }
