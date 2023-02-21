@@ -41,7 +41,9 @@ void ULifelikeRule::ApplyCellRules()
 		{
 			int AliveNeighbors = GetCellAliveNeighbors(CellID);
 
-			NextStates[CellID] = BaseMembers.CurrentStates[CellID] ? int(SurviveRules[AliveNeighbors]) : int(BirthRules[AliveNeighbors]);
+			NextStates[CellID] =	BaseMembers.CurrentStates[CellID] ? 
+									int(SurviveRules[AliveNeighbors]) : 
+									int(BirthRules[AliveNeighbors]);
 
 			PostStateChange(CellID);	
 		}
