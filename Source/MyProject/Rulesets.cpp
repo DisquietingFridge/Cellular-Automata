@@ -33,28 +33,6 @@ void ULifelikeRule::SetBaseMembers(FBaseAutomataStruct NewBaseMembers)
 	PostNeighborhoodSetup();
 }
 
-void ULifelikeRule::CalcStepSwitches()
-{
-	ParallelFor(BaseMembers.Neighborhoods.Num(), [&](int32 CellID)
-	{
-		if (EvalFlaggedLastStep[CellID])// register change based on state
-		{
-			// register change based on state
-			if (NextStates[CellID])
-			{  // switch-off time is in the future, i.e. cell is still on
-				BaseMembers.SwitchStepBuffer[CellID] = TNumericLimits<float>::Max();
-			}
-			else // is off at next time
-			{
-				if (BaseMembers.CurrentStates[CellID])  // was previously on
-				{ // register switch-off time as being upcoming step
-					BaseMembers.SwitchStepBuffer[CellID] = BaseMembers.NextStep;
-				}
-			}
-		}
-	});
-}
-
 void ULifelikeRule::ApplyCellRules()
 {
 	ParallelFor(BaseMembers.Neighborhoods.Num(), [&](int32 CellID)
@@ -65,17 +43,25 @@ void ULifelikeRule::ApplyCellRules()
 
 			NextStates[CellID] = BaseMembers.CurrentStates[CellID] ? int(SurviveRules[AliveNeighbors]) : int(BirthRules[AliveNeighbors]);
 
-			//there has been a change of state
-			if (NextStates[CellID] != BaseMembers.CurrentStates[CellID])
-			{
-				EvalFlaggedThisStep[CellID] = true;
-				for (int InfluencedCellID : NeighborsOf[CellID])
-				{
-					EvalFlaggedThisStep[InfluencedCellID] = true;
-				}
-			}
+			PostStateChange(CellID);	
 		}
 	} /*,EParallelForFlags::ForceSingleThread*/);
+}
+
+void ULifelikeRule::PostStateChange(int CellID)
+{
+	if (NextStates[CellID] != BaseMembers.CurrentStates[CellID])
+	{
+		EvalFlaggedThisStep[CellID] = true;
+		for (int InfluencedCellID : NeighborsOf[CellID])
+		{
+			EvalFlaggedThisStep[InfluencedCellID] = true;
+		}
+
+		BaseMembers.SwitchStepBuffer[CellID] =	NextStates[CellID] ? 
+												TNumericLimits<float>::Max() : 
+												BaseMembers.NextStep;
+	}
 }
 
 void ULifelikeRule::TimestepPropertyShift()
@@ -106,8 +92,6 @@ int ULifelikeRule::GetCellAliveNeighbors(int CellID) const
 void ULifelikeRule::StepComplete()
 {
 	AsyncState.Wait();
-
-	CalcStepSwitches();
 
 	TimestepPropertyShift();
 }

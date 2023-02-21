@@ -31,7 +31,7 @@ class ULifelikeRule : public UObject, public IAutomata
 	TFuture<void> AsyncState;
 
 
-	void CalcStepSwitches();
+	void PostStateChange(int CellID);
 
 	void ApplyCellRules();
 
