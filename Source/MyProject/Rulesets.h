@@ -82,6 +82,8 @@ public:
 
 	void InitializeAnts(int NumAnts);
 
+	void InitializeSequence(TArray<int> Seq);
+
 	void StepComplete() override;
 	void BroadcastData() override;
 	void StartNewStep() override;

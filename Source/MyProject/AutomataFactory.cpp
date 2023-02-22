@@ -91,6 +91,14 @@ void AAutomataFactory::RuleCalcSetup()
 		return;
 	}
 
+	UAntRule* Ant = Cast<UAntRule>(Automata);
+	if (Ant != nullptr)
+	{
+		Ant->InitializeAnts(NumAnts);
+		Ant->InitializeSequence(CellSequence);
+		return;
+	}
+
 }
 
 void AAutomataFactory::DisplaySetup()

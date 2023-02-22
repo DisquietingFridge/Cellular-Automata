@@ -83,6 +83,12 @@ protected:
 	UPROPERTY(Blueprintable, EditAnywhere)
 		BoundGridRuleset SelectedGridRule = BoundGridRuleset::Finite;
 
+	UPROPERTY(Blueprintable, EditAnywhere)
+		int NumAnts = 1;
+
+	UPROPERTY(Blueprintable, EditAnywhere)
+		TArray<int> CellSequence = { 1,1,3,3 };
+
 	// Probability when initializing that a cell will start off alive.
 	// Functionally ranges from 0 to 1.
 	UPROPERTY(Blueprintable, EditAnywhere)

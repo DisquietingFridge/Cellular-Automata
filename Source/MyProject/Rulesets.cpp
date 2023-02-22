@@ -149,6 +149,22 @@ void UAntRule::SetBaseMembers(FBaseAutomataStruct NewBaseMembers)
 
 void UAntRule::InitializeAnts(int NumAnts)
 {
+	AntPositions.Init(0, NumAnts);
+	for (int& AntPos : AntPositions)
+	{
+		AntPos = FMath::RandRange(0, BaseMembers.Neighborhoods.Num() - 1);
+	}
+
+	AntOrientations.Init(0, NumAnts);
+	for (int& AntOr : AntOrientations)
+	{
+		AntOr = FMath::RandRange(0, BaseMembers.Neighborhoods[0].Num() - 1);
+	}
+}
+
+void UAntRule::InitializeSequence(TArray<int> Seq)
+{
+	CellSequence = Seq;
 }
 
 void UAntRule::StepComplete()
@@ -195,7 +211,8 @@ static void AutomataFuncs::MakeNeighborsOf(TArray<TArray<int>>& NeighborsOf, TAr
 
 TArray<bool> AutomataFuncs::StringToRule(FString RuleDigits)
 {
-	TArray<bool> Rule(false, 10);
+	TArray<bool> Rule;
+	Rule.Init(false, 10);
 
 	for (TCHAR character : RuleDigits)
 	{
