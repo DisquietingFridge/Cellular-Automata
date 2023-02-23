@@ -6,7 +6,7 @@
 
 
 UCLASS()
-class ULifelikeRule : public UObject, public IAutomata
+class ULifelikeRule : public UObject, public IAutomata, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -30,6 +30,9 @@ class ULifelikeRule : public UObject, public IAutomata
 	// responsible for calculating the next step asynchronously
 	TFuture<void> AsyncState;
 
+	bool Tickable = false;
+	TArray<float> SwitchStepOutput;
+
 
 	void PostStateChange(int CellID);
 
@@ -44,6 +47,13 @@ class ULifelikeRule : public UObject, public IAutomata
 	void PostNeighborhoodSetup();
 
 	public:
+
+	void Tick(float DeltaTime) override;
+	bool IsAllowedToTick() const override { return Tickable; }
+	virtual TStatId GetStatId() const override
+	{
+		return Super::GetStatID();
+	}
 
 	void InitializeCellStates(float Probability);
 	void InitializeCellRules(FString BirthString, FString SurviveString);

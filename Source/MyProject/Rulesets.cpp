@@ -13,6 +13,12 @@ void ULifelikeRule::PostNeighborhoodSetup()
 	EvalFlaggedLastStep.Init(true, NumCells);
 }
 
+void ULifelikeRule::Tick(float DeltaTime)
+{
+	BaseMembers.Display->UpdateSwitchTimes(SwitchStepOutput);
+	Tickable = false;
+}
+
 void ULifelikeRule::InitializeCellStates(float Probability)
 {
 	for (int& State : BaseMembers.CurrentStates)
@@ -100,7 +106,9 @@ void ULifelikeRule::StepComplete()
 
 void ULifelikeRule::BroadcastData()
 {
-	BaseMembers.Display->UpdateSwitchTimes(BaseMembers.SwitchStepBuffer);
+	//BaseMembers.Display->UpdateSwitchTimes(BaseMembers.SwitchStepBuffer);
+	SwitchStepOutput = BaseMembers.SwitchStepBuffer;
+	Tickable = true;
 }
 
 void ULifelikeRule::StartNewStep()
