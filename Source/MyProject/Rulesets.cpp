@@ -99,8 +99,6 @@ int ULifelikeRule::GetCellAliveNeighbors(int CellID) const
 
 void ULifelikeRule::StepComplete()
 {
-	AsyncState.Wait();
-
 	TimestepPropertyShift();
 }
 
@@ -114,7 +112,7 @@ void ULifelikeRule::BroadcastData()
 void ULifelikeRule::StartNewStep()
 {
 	// kick off calculation of next stage
-	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {ApplyCellRules(); });
+	ApplyCellRules();
 
 }
 
@@ -189,8 +187,8 @@ void UAntRule::BroadcastData()
 
 void UAntRule::StartNewStep()
 {
-	AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {MoveAnts(); });
-	//MoveAnts();
+	//AsyncState = Async(EAsyncExecution::TaskGraph, [&]() {MoveAnts(); });
+	MoveAnts();
 }
 
 

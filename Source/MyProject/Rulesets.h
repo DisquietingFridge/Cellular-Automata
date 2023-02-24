@@ -27,9 +27,6 @@ class ULifelikeRule : public UObject, public IAutomata, public FTickableGameObje
 	// only different from Neighborhoods in asymmetric neighborhoods
 	TArray<TArray<int>> NeighborsOf;
 
-	// responsible for calculating the next step asynchronously
-	TFuture<void> AsyncState;
-
 	bool Tickable = false;
 	TArray<float> SwitchStepOutput;
 
