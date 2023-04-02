@@ -6,6 +6,9 @@ Visually, the automata use a color-fading effect, resulting in beautiful, cascad
 
 <img src = "https://user-images.githubusercontent.com/30654622/219524565-d508d7a4-d76b-40ec-8137-837ebcbeb51b.png" width="20%" height="20%">
 
+
+https://user-images.githubusercontent.com/30654622/229349379-26bc3958-e624-44aa-ba31-dcd7147f17a9.mp4
+
 By itself, the implementation of a cellular-automata system is fairly trivial. I recall making a Langton's Ant system as part of an undergrad computer-science course, for instance. Nevertheless, this project has posed some interesting challenges:
 
 * __Implementing multiple kinds__ of cellular-automata implies code-reuse and extendability, and so the codebase needs to be developed with this in mind. This project has served as a kind of test-bed for me to apply concepts of software architecture, and I believe it will challenge me even more as I implement more kinds of automata.
